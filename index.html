@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BALAVIGNESHWAR'S Game Arcade</title>
+    <title>Balavigneshwartg's Game Arcade</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700&display=swap');
 
@@ -42,7 +42,34 @@
             background: linear-gradient(180deg, rgba(0,243,255,0.1) 0%, rgba(0,0,0,0) 100%);
             box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
             position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
+
+        /* --- PROFILE PICTURE STYLES --- */
+        .profile-container {
+            position: relative;
+            margin-bottom: 25px;
+        }
+
+        .profile-pic {
+            width: 140px;  /* Size of the image */
+            height: 140px;
+            border-radius: 50%; /* Makes it circular */
+            border: 4px solid var(--neon-blue);
+            object-fit: cover; /* Ensures image doesn't stretch */
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.4);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background-color: #000; /* Fallback color */
+        }
+
+        .profile-pic:hover {
+            transform: scale(1.05);
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 50px var(--neon-pink);
+        }
+        /* --------------------------- */
 
         h1 {
             font-family: 'Press Start 2P', cursive;
@@ -224,10 +251,15 @@
 <body>
 
     <header>
+        <!-- PROFILE PICTURE CONTAINER -->
+        <div class="profile-container">
+            <!-- IMPORTANT: File name must be exactly profile.jpg (lowercase) -->
+            <img src="profile.jpg" alt="Developer Profile" class="profile-pic" onerror="this.style.display='none'">
+        </div>
+
         <h1>ARCADE PORTFOLIO</h1>
-        <div class="subtitle">DEVELOPER: BALAVIGNESHWAR T G</div>
+        <div class="subtitle">DEVELOPER: BALAVIGNESHWARTG</div>
         
-        <!-- Link to your GitHub Repo -->
         <a href="https://github.com/BALAVIGNESHWARTG/arcade-portfolio" class="github-link" target="_blank">
             &lt;/&gt; VIEW OPEN SOURCE CODE
         </a>
@@ -264,7 +296,7 @@
             <div class="card-content">
                 <div class="card-title">SPACE SHOOTER</div>
                 <p class="card-desc">
-                    Defend the galaxy! Fast-paced arcade action with neon visuals. Shoot aliens and dodge attacks.
+                    Defend the galaxy! Fast-paced arcade action with neon visuals. Shoot aliens, fight bosses, and collect powerups.
                 </p>
                 <div class="play-btn">PLAY NOW</div>
             </div>
@@ -301,7 +333,7 @@
     </div>
 
     <footer>
-        <p>&copy; 2025-2026 BALAVIGNESHWAR T G Built with HTML5, CSS & JS.</p>
+        <p>&copy; 2024 Balavigneshwartg. Built with HTML5, CSS & JS.</p>
         <p style="margin-top: 10px; font-size: 0.8em; color: #444;">Open Source Library for Developers</p>
     </footer>
 
