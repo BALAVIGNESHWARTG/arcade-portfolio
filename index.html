@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Balavigneshwartg's Game Arcade</title>
+    <title>Arcade-100: Balavigneshwartg</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700&display=swap');
 
@@ -54,14 +54,14 @@
         }
 
         .profile-pic {
-            width: 140px;  /* Size of the image */
+            width: 140px;
             height: 140px;
-            border-radius: 50%; /* Makes it circular */
+            border-radius: 50%;
             border: 4px solid var(--neon-blue);
-            object-fit: cover; /* Ensures image doesn't stretch */
+            object-fit: cover;
             box-shadow: 0 0 30px rgba(0, 243, 255, 0.4);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            background-color: #000; /* Fallback color */
+            background-color: #000;
         }
 
         .profile-pic:hover {
@@ -69,14 +69,13 @@
             border-color: var(--neon-pink);
             box-shadow: 0 0 50px var(--neon-pink);
         }
-        /* --------------------------- */
 
         h1 {
             font-family: 'Press Start 2P', cursive;
             color: var(--neon-blue);
             text-shadow: 0 0 10px var(--neon-blue);
             font-size: 28px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             line-height: 1.5;
         }
 
@@ -107,6 +106,58 @@
             background: var(--neon-purple);
             color: white;
             box-shadow: 0 0 15px var(--neon-purple);
+        }
+
+        /* --- PROGRESS TRACKER UI (Based on Jarvis Spec) --- */
+        .progress-panel {
+            margin: 30px auto 10px;
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .progress-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
+            color: var(--neon-green);
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            background: #111;
+            border: 1px solid var(--neon-blue);
+            height: 20px;
+            width: 100%;
+            margin: 15px 0;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00f3ff, #39ff14);
+            width: 3%; /* 3 out of 100 games */
+            box-shadow: 0 0 10px var(--neon-green);
+            transition: width 1s ease-in-out;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            list-style: none;
+            font-size: 0.9rem;
+            color: #ccc;
+            flex-wrap: wrap;
+        }
+
+        .stat-item span {
+            font-weight: bold;
         }
 
         /* Intro Section */
@@ -170,7 +221,6 @@
             overflow: hidden;
         }
 
-        /* Animated grid background for card image */
         .card-image::before {
             content: '';
             position: absolute;
@@ -200,7 +250,7 @@
             font-size: 0.95rem;
             color: #ccc;
             line-height: 1.5;
-            margin-bottom: auto; /* Pushes button down */
+            margin-bottom: auto;
         }
 
         .play-btn {
@@ -221,6 +271,21 @@
             color: black;
             box-shadow: 0 0 15px var(--neon-green);
         }
+
+        /* Badges */
+        .badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            font-family: 'Rajdhani', sans-serif;
+            z-index: 5;
+        }
+        .badge-completed { background: var(--neon-green); color: black; }
+        .badge-dev { background: #555; color: #ccc; }
 
         /* Future placeholder card */
         .coming-soon {
@@ -251,80 +316,117 @@
 <body>
 
     <header>
-        <!-- PROFILE PICTURE CONTAINER -->
         <div class="profile-container">
-            <!-- IMPORTANT: File name must be exactly profile.jpg (lowercase) -->
             <img src="profile.jpg" alt="Developer Profile" class="profile-pic" onerror="this.style.display='none'">
         </div>
 
-        <h1>ARCADE PORTFOLIO</h1>
+        <h1>ARCADE-100</h1>
         <div class="subtitle">DEVELOPER: BALAVIGNESHWARTG</div>
         
         <a href="https://github.com/BALAVIGNESHWARTG/arcade-portfolio" class="github-link" target="_blank">
-            &lt;/&gt; VIEW OPEN SOURCE CODE
+            &lt;/&gt; VIEW SOURCE (GITHUB)
         </a>
+
+        <!-- PROGRESS TRACKER -->
+        <div class="progress-panel">
+            <div class="progress-title">SYSTEM STATUS: BUILDING 100 GAMES</div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 3%"></div>
+            </div>
+            <ul class="progress-stats">
+                <li class="stat-item"><span style="color: var(--neon-green)">3</span> COMPLETED</li>
+                <li class="stat-item"><span style="color: var(--neon-blue)">97</span> REMAINING</li>
+                <li class="stat-item"><span style="color: var(--neon-pink)">100%</span> VANILLA JS</li>
+            </ul>
+        </div>
     </header>
 
     <div class="intro-text">
         <p>
-            Welcome to my retro game library. A collection of <span class="highlight">HTML5 & JavaScript</span> experiments.
-            Feel free to play, review the code, and use it in your own projects.
+            Welcome to the <span class="highlight">Arcade-100 Project</span>. 
+            My mission is to build 100 retro-style games using pure HTML5, CSS, and JavaScript. 
+            No frameworks. No engines. Just logic.
         </p>
     </div>
 
     <div class="game-grid">
         
-        <!-- CARD 1: NEON SNAKE -->
+        <!-- GAME 1: NEON SNAKE -->
         <a href="./snake/index.html" class="game-card">
-            <div class="card-image">
-                🐍
-            </div>
+            <span class="badge badge-completed">COMPLETED</span>
+            <div class="card-image">🐍</div>
             <div class="card-content">
                 <div class="card-title">NEON SNAKE</div>
                 <p class="card-desc">
-                    A cyberpunk reimagining of the classic. Features mobile swipe controls, high-score tracking, and glow effects.
+                    Cyberpunk reimagining. Mobile swipe controls, high-score system.
+                    <br><span style="color: #666; font-size: 0.8em;">Tier 1: Beginner</span>
                 </p>
                 <div class="play-btn">PLAY NOW</div>
             </div>
         </a>
 
-        <!-- CARD 2: NEON SPACE SHOOTER -->
+        <!-- GAME 2: SPACE SHOOTER -->
         <a href="./space-shooter/index.html" class="game-card">
-            <div class="card-image">
-                👾
-            </div>
+            <span class="badge badge-completed">COMPLETED</span>
+            <div class="card-image">👾</div>
             <div class="card-content">
                 <div class="card-title">SPACE SHOOTER</div>
                 <p class="card-desc">
-                    Defend the galaxy! Fast-paced arcade action with neon visuals. Shoot aliens, fight bosses, and collect powerups.
+                    Bullet hell style. Includes Boss Battles, Power-ups, and particle FX.
+                    <br><span style="color: #666; font-size: 0.8em;">Tier 2: Intermediate</span>
                 </p>
                 <div class="play-btn">PLAY NOW</div>
             </div>
         </a>
 
-        <!-- CARD 3: COMING SOON -->
-        <div class="game-card coming-soon">
-            <div class="card-image" style="color: #555; text-shadow: none;">
-                🏓
-            </div>
+        <!-- GAME 3: BREAKOUT -->
+        <a href="./breakout/index.html" class="game-card">
+            <span class="badge badge-completed">COMPLETED</span>
+            <div class="card-image">🧱</div>
             <div class="card-content">
-                <div class="card-title">RETRO PONG</div>
+                <div class="card-title">NEON SMASHER</div>
                 <p class="card-desc">
-                    The game that started it all. 1v1 paddle action with modern physics.
+                    Endless brick breaker. Wide paddle & Multi-ball buffs. Level scaling.
+                    <br><span style="color: #666; font-size: 0.8em;">Tier 2: Intermediate</span>
+                </p>
+                <div class="play-btn">PLAY NOW</div>
+            </div>
+        </a>
+
+        <!-- UPCOMING: TETRIS -->
+        <div class="game-card coming-soon">
+            <span class="badge badge-dev">TIER 3</span>
+            <div class="card-image" style="color: #555; text-shadow: none;">L</div>
+            <div class="card-content">
+                <div class="card-title">NEON BLOCKS</div>
+                <p class="card-desc">
+                    The classic grid puzzle. Line clearing logic and rotation systems.
                     <br><br><i>In Development...</i>
                 </p>
             </div>
         </div>
 
-        <!-- CARD 4: COMING SOON -->
+        <!-- UPCOMING: ENDLESS RUNNER -->
         <div class="game-card coming-soon">
-            <div class="card-image" style="color: #555; text-shadow: none;">
-                🧱
-            </div>
+            <span class="badge badge-dev">TIER 3</span>
+            <div class="card-image" style="color: #555; text-shadow: none;">🏃</div>
             <div class="card-content">
-                <div class="card-title">BREAKOUT</div>
+                <div class="card-title">CYBER RUNNER</div>
                 <p class="card-desc">
-                    Smash the neon bricks. Power-ups, multi-ball, and increasing difficulty.
+                    Infinite scrolling platformer. Gravity jumps and obstacle generation.
+                    <br><br><i>In Development...</i>
+                </p>
+            </div>
+        </div>
+
+        <!-- UPCOMING: PAC-MAN -->
+        <div class="game-card coming-soon">
+            <span class="badge badge-dev">TIER 4</span>
+            <div class="card-image" style="color: #555; text-shadow: none;">👻</div>
+            <div class="card-content">
+                <div class="card-title">PAC-MAZE</div>
+                <p class="card-desc">
+                    Complex AI ghost logic, pathfinding, and maze generation.
                     <br><br><i>In Development...</i>
                 </p>
             </div>
