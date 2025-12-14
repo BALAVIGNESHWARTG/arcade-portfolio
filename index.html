@@ -2,466 +2,308 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Cyberpunk Snake</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balavigneshwartg's Game Arcade</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700&display=swap');
 
         :root {
             --bg-color: #050510;
-            --grid-line: rgba(0, 255, 255, 0.1);
-            --snake-color: #39ff14;
-            --snake-glow: 0 0 10px #39ff14, 0 0 20px #39ff14;
-            --food-color: #ff00ff;
-            --food-glow: 0 0 10px #ff00ff, 0 0 20px #ff00ff;
-            --text-color: #0ff;
-            --text-glow: 0 0 5px #0ff;
-            --ui-bg: rgba(0, 0, 0, 0.85);
-            --border-color: #0ff;
+            --card-bg: #0a0a1a;
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #39ff14;
+            --neon-purple: #bd00ff;
+            --text-main: #ffffff;
         }
 
         * {
             box-sizing: border-box;
-            touch-action: none; /* Prevent browser zooming/scrolling on mobile */
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            margin: 0;
-            padding: 0;
             background-color: var(--bg-color);
-            background-image: 
-                linear-gradient(var(--grid-line) 1px, transparent 1px),
-                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-            background-size: 20px 20px;
-            color: var(--text-color);
-            font-family: 'Press Start 2P', monospace;
+            color: var(--text-main);
+            font-family: 'Rajdhani', sans-serif;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
         }
 
-        #game-container {
-            position: relative;
-            border: 2px solid var(--border-color);
-            box-shadow: 0 0 20px var(--border-color), inset 0 0 20px rgba(0, 255, 255, 0.2);
-            background-color: rgba(0, 0, 0, 0.6);
-        }
-
-        canvas {
-            display: block;
-        }
-
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* Let clicks pass through to canvas if needed, mostly for visual overlay */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 20px;
-        }
-
-        .hud {
-            display: flex;
-            justify-content: space-between;
-            text-shadow: var(--text-glow);
-            font-size: 14px;
-            z-index: 10;
-        }
-
-        #start-screen, #game-over-screen {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: var(--ui-bg);
-            border: 2px solid var(--border-color);
-            padding: 40px;
+        /* Header */
+        header {
             text-align: center;
-            pointer-events: auto;
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
-            z-index: 20;
-            width: 80%;
-            max-width: 400px;
+            padding: 40px 20px 20px;
+            border-bottom: 2px solid var(--neon-blue);
+            width: 100%;
+            background: linear-gradient(180deg, rgba(0,243,255,0.1) 0%, rgba(0,0,0,0) 100%);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            position: relative;
         }
 
         h1 {
-            color: var(--snake-color);
-            text-shadow: var(--snake-glow);
-            margin-bottom: 20px;
-            font-size: 24px;
+            font-family: 'Press Start 2P', cursive;
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px var(--neon-blue);
+            font-size: 28px;
+            margin-bottom: 15px;
             line-height: 1.5;
         }
 
-        p {
+        .subtitle {
+            color: #aaa;
+            letter-spacing: 3px;
+            font-size: 1.2rem;
             margin-bottom: 20px;
-            line-height: 1.6;
-            font-size: 12px;
-            color: #ccc;
-        }
-
-        button {
-            background: transparent;
-            color: var(--snake-color);
-            border: 2px solid var(--snake-color);
-            padding: 15px 30px;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 16px;
-            cursor: pointer;
-            text-shadow: var(--snake-glow);
-            box-shadow: var(--snake-glow);
-            transition: all 0.2s;
             text-transform: uppercase;
         }
 
-        button:hover {
-            background: var(--snake-color);
-            color: #000;
-            box-shadow: 0 0 40px var(--snake-color);
-        }
-
-        .hidden {
-            display: none !important;
-        }
-
-        /* Scanline effect */
-        .scanlines {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: linear-gradient(
-                to bottom,
-                rgba(255,255,255,0),
-                rgba(255,255,255,0) 50%,
-                rgba(0,0,0,0.2) 50%,
-                rgba(0,0,0,0.2)
-            );
-            background-size: 100% 4px;
-            pointer-events: none;
-            z-index: 100;
-            opacity: 0.6;
-        }
-
-        /* Mobile controls hint */
-        .controls-hint {
+        .github-link {
+            display: inline-block;
             margin-top: 10px;
-            font-size: 10px;
-            color: #888;
-            text-align: center;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--neon-purple);
+            color: var(--neon-purple);
+            text-decoration: none;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 5px;
+            transition: all 0.3s ease;
         }
+
+        .github-link:hover {
+            background: var(--neon-purple);
+            color: white;
+            box-shadow: 0 0 15px var(--neon-purple);
+        }
+
+        /* Intro Section */
+        .intro-text {
+            max-width: 800px;
+            text-align: center;
+            padding: 30px 20px 10px;
+            color: #ddd;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        .highlight {
+            color: var(--neon-green);
+            font-weight: bold;
+        }
+
+        /* Game Grid */
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            padding: 40px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* Game Card */
+        .game-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--neon-blue);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            position: relative;
+            text-decoration: none;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            height: 380px;
+        }
+
+        .game-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.3);
+            border-color: var(--neon-pink);
+        }
+
+        .card-image {
+            height: 200px;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 1px solid var(--neon-blue);
+            font-family: 'Press Start 2P', cursive;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green);
+            font-size: 50px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated grid background for card image */
+        .card-image::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.5;
+        }
+
+        .card-content {
+            padding: 25px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: var(--neon-pink);
+        }
+
+        .card-desc {
+            font-size: 0.95rem;
+            color: #ccc;
+            line-height: 1.5;
+            margin-bottom: auto; /* Pushes button down */
+        }
+
+        .play-btn {
+            margin-top: 20px;
+            background: transparent;
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+            padding: 12px;
+            text-align: center;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+
+        .game-card:hover .play-btn {
+            background: var(--neon-green);
+            color: black;
+            box-shadow: 0 0 15px var(--neon-green);
+        }
+
+        /* Future placeholder card */
+        .coming-soon {
+            filter: grayscale(1);
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #444;
+        }
+        .coming-soon:hover {
+            transform: none;
+            box-shadow: none;
+            border-color: #444;
+        }
+
+        footer {
+            margin-top: auto;
+            padding: 30px;
+            color: #666;
+            font-size: 0.9rem;
+            text-align: center;
+            border-top: 1px solid #1a1a2e;
+            width: 100%;
+        }
+        
+        a { text-decoration: none; }
     </style>
 </head>
 <body>
 
-    <div class="scanlines"></div>
+    <header>
+        <h1>ARCADE PORTFOLIO</h1>
+        <div class="subtitle">DEVELOPER: BALAVIGNESHWARTG</div>
+        
+        <!-- Link to your GitHub Repo -->
+        <a href="https://github.com/BALAVIGNESHWARTG/neon-snake" class="github-link" target="_blank">
+            &lt;/&gt; VIEW OPEN SOURCE CODE
+        </a>
+    </header>
 
-    <div id="game-container">
-        <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <div class="intro-text">
+        <p>
+            Welcome to my retro game library. A collection of <span class="highlight">HTML5 & JavaScript</span> experiments.
+            Feel free to play, review the code, and use it in your own projects.
+        </p>
+    </div>
 
-        <div id="ui-layer">
-            <div class="hud">
-                <span id="score">SCORE: 0</span>
-                <span id="high-score">HI: 0</span>
+    <div class="game-grid">
+        
+        <!-- CARD 1: NEON SNAKE -->
+        <a href="./snake/index.html" class="game-card">
+            <div class="card-image">
+                🐍
+            </div>
+            <div class="card-content">
+                <div class="card-title">NEON SNAKE</div>
+                <p class="card-desc">
+                    A cyberpunk reimagining of the classic. Features mobile swipe controls, high-score tracking, and glow effects.
+                </p>
+                <div class="play-btn">PLAY NOW</div>
+            </div>
+        </a>
+
+        <!-- CARD 2: COMING SOON -->
+        <div class="game-card coming-soon">
+            <div class="card-image" style="color: #555; text-shadow: none;">
+                👾
+            </div>
+            <div class="card-content">
+                <div class="card-title">SPACE SHOOTER</div>
+                <p class="card-desc">
+                    Classic arcade shooter. Defend earth from waves of alien invaders.
+                    <br><br><i>In Development...</i>
+                </p>
             </div>
         </div>
 
-        <div id="start-screen">
-            <h1>NEON SNAKE</h1>
-            <p>USE ARROW KEYS OR SWIPE TO MOVE</p>
-            <button id="start-btn">INSERT COIN</button>
+        <!-- CARD 3: COMING SOON -->
+        <div class="game-card coming-soon">
+            <div class="card-image" style="color: #555; text-shadow: none;">
+                🏓
+            </div>
+            <div class="card-content">
+                <div class="card-title">RETRO PONG</div>
+                <p class="card-desc">
+                    The game that started it all. 1v1 paddle action with modern physics.
+                    <br><br><i>In Development...</i>
+                </p>
+            </div>
         </div>
 
-        <div id="game-over-screen" class="hidden">
-            <h1 style="color: #ff3333; text-shadow: 0 0 10px #ff3333;">GAME OVER</h1>
-            <p id="final-score">SCORE: 0</p>
-            <button id="restart-btn">TRY AGAIN</button>
+        <!-- CARD 4: COMING SOON -->
+        <div class="game-card coming-soon">
+            <div class="card-image" style="color: #555; text-shadow: none;">
+                🧱
+            </div>
+            <div class="card-content">
+                <div class="card-title">BREAKOUT</div>
+                <p class="card-desc">
+                    Smash the neon bricks. Power-ups, multi-ball, and increasing difficulty.
+                    <br><br><i>In Development...</i>
+                </p>
+            </div>
         </div>
+
     </div>
-    
-    <div class="controls-hint">Desktop: Arrow Keys | Mobile: Swipe</div>
 
-    <script>
-        // Game Constants
-        const CANVAS_SIZE = 600; // Internal resolution
-        const GRID_SIZE = 20;
-        const TILE_COUNT = CANVAS_SIZE / GRID_SIZE;
-        const BASE_SPEED = 100; // ms per frame
+    <footer>
+        <p>&copy; 2024 Balavigneshwartg. Built with HTML5, CSS & JS.</p>
+        <p style="margin-top: 10px; font-size: 0.8em; color: #444;">Open Source Library for Developers</p>
+    </footer>
 
-        // DOM Elements
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
-        const highScoreEl = document.getElementById('high-score');
-        const startScreen = document.getElementById('start-screen');
-        const gameOverScreen = document.getElementById('game-over-screen');
-        const finalScoreEl = document.getElementById('final-score');
-        const startBtn = document.getElementById('start-btn');
-        const restartBtn = document.getElementById('restart-btn');
-        const gameContainer = document.getElementById('game-container');
-
-        // Game State
-        let snake = [];
-        let food = { x: 0, y: 0 };
-        let velocity = { x: 0, y: 0 };
-        let nextVelocity = { x: 0, y: 0 }; // Buffer for rapid key presses
-        let score = 0;
-        let highScore = localStorage.getItem('neonSnakeHighScore') || 0;
-        let gameLoopId;
-        let isGameRunning = false;
-        let lastTime = 0;
-        let speed = BASE_SPEED;
-
-        // Resize Handling for Responsiveness
-        function resizeGame() {
-            const maxWidth = window.innerWidth - 40;
-            const maxHeight = window.innerHeight - 80;
-            const size = Math.min(maxWidth, maxHeight, 600);
-            
-            // Set display size via CSS, keep internal canvas resolution fixed
-            canvas.style.width = `${size}px`;
-            canvas.style.height = `${size}px`;
-            gameContainer.style.width = `${size}px`;
-            gameContainer.style.height = `${size}px`;
-        }
-
-        window.addEventListener('resize', resizeGame);
-        resizeGame(); // Initial call
-        highScoreEl.textContent = `HI: ${highScore}`;
-
-        // Initialize Game
-        function initGame() {
-            // Start in the middle
-            snake = [
-                { x: 10, y: 15 },
-                { x: 10, y: 16 },
-                { x: 10, y: 17 }
-            ];
-            score = 0;
-            speed = BASE_SPEED;
-            velocity = { x: 0, y: -1 }; // Moving up
-            nextVelocity = { x: 0, y: -1 };
-            scoreEl.textContent = `SCORE: ${score}`;
-            placeFood();
-            isGameRunning = true;
-            lastTime = performance.now();
-            requestAnimationFrame(gameLoop);
-        }
-
-        function placeFood() {
-            let validPosition = false;
-            while (!validPosition) {
-                food.x = Math.floor(Math.random() * TILE_COUNT);
-                food.y = Math.floor(Math.random() * TILE_COUNT);
-
-                // Ensure food doesn't spawn on snake
-                validPosition = !snake.some(segment => segment.x === food.x && segment.y === food.y);
-            }
-        }
-
-        // Game Loop
-        function gameLoop(currentTime) {
-            if (!isGameRunning) return;
-
-            requestAnimationFrame(gameLoop);
-
-            const deltaTime = currentTime - lastTime;
-
-            if (deltaTime >= speed) {
-                update();
-                draw();
-                lastTime = currentTime;
-            }
-        }
-
-        function update() {
-            // Apply buffered direction
-            velocity = { ...nextVelocity };
-
-            const head = { x: snake[0].x + velocity.x, y: snake[0].y + velocity.y };
-
-            // Wall Collision (Wrap around or Die? Let's die for retro hardcore feel)
-            if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
-                gameOver();
-                return;
-            }
-
-            // Self Collision
-            for (let i = 0; i < snake.length; i++) {
-                if (head.x === snake[i].x && head.y === snake[i].y) {
-                    gameOver();
-                    return;
-                }
-            }
-
-            snake.unshift(head); // Add new head
-
-            // Food Collision
-            if (head.x === food.x && head.y === food.y) {
-                score += 10;
-                scoreEl.textContent = `SCORE: ${score}`;
-                
-                // Speed up slightly every 50 points
-                if (score % 50 === 0 && speed > 40) {
-                    speed -= 5;
-                }
-
-                placeFood();
-                // Don't pop tail, so snake grows
-            } else {
-                snake.pop(); // Remove tail
-            }
-        }
-
-        function draw() {
-            // Clear Background
-            ctx.fillStyle = '#050510'; // Match CSS bg
-            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-            // Draw Grid (Optional, for visual flair)
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.05)';
-            ctx.lineWidth = 1;
-            for(let i=0; i<TILE_COUNT; i++) {
-                ctx.beginPath();
-                ctx.moveTo(i*GRID_SIZE, 0);
-                ctx.lineTo(i*GRID_SIZE, CANVAS_SIZE);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(0, i*GRID_SIZE);
-                ctx.lineTo(CANVAS_SIZE, i*GRID_SIZE);
-                ctx.stroke();
-            }
-
-            // Draw Food
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#ff00ff";
-            ctx.fillStyle = "#ff00ff";
-            ctx.beginPath();
-            // Draw food as a circle
-            const foodCx = food.x * GRID_SIZE + GRID_SIZE/2;
-            const foodCy = food.y * GRID_SIZE + GRID_SIZE/2;
-            ctx.arc(foodCx, foodCy, GRID_SIZE/2 - 2, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw Snake
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "#39ff14";
-            ctx.fillStyle = "#39ff14";
-            
-            snake.forEach((segment, index) => {
-                // Head is slightly different
-                if (index === 0) {
-                    ctx.fillStyle = "#ccffcc"; // Brighter head
-                } else {
-                    ctx.fillStyle = "#39ff14";
-                }
-                
-                // Draw slightly smaller rects for segment look
-                ctx.fillRect(
-                    segment.x * GRID_SIZE + 1, 
-                    segment.y * GRID_SIZE + 1, 
-                    GRID_SIZE - 2, 
-                    GRID_SIZE - 2
-                );
-            });
-
-            // Reset shadow for performance
-            ctx.shadowBlur = 0;
-        }
-
-        function gameOver() {
-            isGameRunning = false;
-            if (score > highScore) {
-                highScore = score;
-                localStorage.setItem('neonSnakeHighScore', highScore);
-                highScoreEl.textContent = `HI: ${highScore}`;
-            }
-            finalScoreEl.textContent = `SCORE: ${score}`;
-            gameOverScreen.classList.remove('hidden');
-        }
-
-        // Input Handling
-        document.addEventListener('keydown', (e) => {
-            // Prevent scrolling with arrow keys
-            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
-                e.preventDefault();
-            }
-
-            switch(e.key) {
-                case 'ArrowUp':
-                    if (velocity.y === 0) nextVelocity = { x: 0, y: -1 };
-                    break;
-                case 'ArrowDown':
-                    if (velocity.y === 0) nextVelocity = { x: 0, y: 1 };
-                    break;
-                case 'ArrowLeft':
-                    if (velocity.x === 0) nextVelocity = { x: -1, y: 0 };
-                    break;
-                case 'ArrowRight':
-                    if (velocity.x === 0) nextVelocity = { x: 1, y: 0 };
-                    break;
-            }
-        });
-
-        // Touch Controls (Swipe)
-        let touchStartX = 0;
-        let touchStartY = 0;
-
-        gameContainer.addEventListener('touchstart', (e) => {
-            touchStartX = e.changedTouches[0].screenX;
-            touchStartY = e.changedTouches[0].screenY;
-        }, {passive: false});
-
-        gameContainer.addEventListener('touchmove', (e) => {
-            e.preventDefault(); // Prevent scrolling while swiping
-        }, {passive: false});
-
-        gameContainer.addEventListener('touchend', (e) => {
-            const touchEndX = e.changedTouches[0].screenX;
-            const touchEndY = e.changedTouches[0].screenY;
-            handleSwipe(touchStartX, touchStartY, touchEndX, touchEndY);
-        }, {passive: false});
-
-        function handleSwipe(startX, startY, endX, endY) {
-            const diffX = endX - startX;
-            const diffY = endY - startY;
-
-            // Determine if horizontal or vertical swipe was dominant
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                // Horizontal
-                if (diffX > 0) { // Right
-                    if (velocity.x === 0) nextVelocity = { x: 1, y: 0 };
-                } else { // Left
-                    if (velocity.x === 0) nextVelocity = { x: -1, y: 0 };
-                }
-            } else {
-                // Vertical
-                if (diffY > 0) { // Down
-                    if (velocity.y === 0) nextVelocity = { x: 0, y: 1 };
-                } else { // Up
-                    if (velocity.y === 0) nextVelocity = { x: 0, y: -1 };
-                }
-            }
-        }
-
-        // UI Event Listeners
-        startBtn.addEventListener('click', () => {
-            startScreen.classList.add('hidden');
-            initGame();
-        });
-
-        restartBtn.addEventListener('click', () => {
-            gameOverScreen.classList.add('hidden');
-            initGame();
-        });
-
-    </script>
 </body>
 </html>
