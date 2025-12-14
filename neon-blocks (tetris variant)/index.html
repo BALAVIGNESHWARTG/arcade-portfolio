@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Blocks: Chrono Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700&display=swap');
+
+        :root {
+            --bg-color: #050510;
+            --grid-bg: rgba(0, 0, 0, 0.8);
+            --neon-primary: #00f3ff;
+            --neon-secondary: #ff00ff;
+            --neon-accent: #39ff14;
+            --text-color: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Rajdhani', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #game-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            /* Ensure it fits on screen */
+            max-height: 95vh;
+        }
+
+        #game-canvas {
+            background-color: var(--grid-bg);
+            border: 2px solid var(--neon-primary);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            /* Make it responsive but keep crispness */
+            max-height: 80vh;
+            width: auto;
+            aspect-ratio: 350/700;
+        }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 150px;
+        }
+
+        .hud-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .hud-label {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            color: var(--neon-secondary);
+            margin-bottom: 5px;
+        }
+
+        .hud-value {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            color: var(--neon-primary);
+        }
+
+        /* Unique Feature UI: Chrono Gauge */
+        #chrono-gauge-container {
+            width: 100%;
+            height: 10px;
+            background: #333;
+            border: 1px solid var(--neon-accent);
+            margin-top: 5px;
+        }
+
+        #chrono-fill {
+            width: 0%;
+            height: 100%;
+            background: var(--neon-accent);
+            box-shadow: 0 0 10px var(--neon-accent);
+            transition: width 0.1s;
+        }
+
+        #start-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        h1 {
+            font-family: 'Press Start 2P', cursive;
+            color: var(--neon-primary);
+            font-size: 24px;
+            text-shadow: 0 0 15px var(--neon-primary);
+            margin-bottom: 10px;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        button {
+            background: transparent;
+            color: var(--neon-secondary);
+            border: 2px solid var(--neon-secondary);
+            padding: 15px 30px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--neon-secondary);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-secondary);
+        }
+
+        #freeze-effect {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            border: 5px solid var(--neon-accent);
+            box-shadow: inset 0 0 50px var(--neon-accent);
+            pointer-events: none;
+            display: none;
+            z-index: 50;
+        }
+        
+        .mobile-controls {
+            display: none; /* Flex on mobile */
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            justify-content: center;
+            gap: 20px;
+            z-index: 90;
+        }
+        
+        .control-btn {
+            width: 60px; height: 60px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; color: white;
+            user-select: none;
+        }
+
+        @media (max-width: 768px) {
+            #game-layout { flex-direction: column; align-items: center; }
+            .side-panel { flex-direction: row; width: 100%; justify-content: center; }
+            .mobile-controls { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 
+    🛑 ARCHITECTURAL NOTES:
+    - Buffer System: 'gridStateBuffer' (1D array representation of 2D grid for perf)
+    - Level System: 'LEVEL_MANIFEST' JSON defines speed decay curves
+    - Unique Feature: 'Chrono-Freeze' (Time dilation mechanic)
+    - Loop: Fixed time-step loop with decoupled rendering
+    -->
+
+    <div id="freeze-effect"></div>
+
+    <div id="start-overlay">
+        <h1>NEON BLOCKS:<br>CHRONO EDITION</h1>
+        <p style="color: #ccc; margin-top: 10px; text-align: center;">
+            ARROWS to Move/Rotate<br>
+            SHIFT to FREEZE TIME (Requires Energy)<br>
+            Complete lines to level up
+        </p>
+        <button id="start-btn">INITIATE SYSTEM</button>
+    </div>
+
+    <div id="game-layout">
+        <!-- Width: 350 (10 cols * 35px), Height: 700 (20 rows * 35px) -->
+        <canvas id="game-canvas" width="350" height="700"></canvas>
+        
+        <div class="side-panel">
+            <div class="hud-box">
+                <div class="hud-label">SCORE</div>
+                <div class="hud-value" id="score-val">0</div>
+            </div>
+            <div class="hud-box">
+                <div class="hud-label">LEVEL</div>
+                <div class="hud-value" id="level-val">1</div>
+            </div>
+            <div class="hud-box">
+                <div class="hud-label">CHRONO ENERGY</div>
+                <div id="chrono-gauge-container">
+                    <div id="chrono-fill"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mobile-controls">
+        <div class="control-btn" id="btn-left">←</div>
+        <div class="control-btn" id="btn-rot">↻</div>
+        <div class="control-btn" id="btn-right">→</div>
+        <div class="control-btn" id="btn-down">↓</div>
+        <div class="control-btn" id="btn-freeze" style="border-color: #39ff14; color: #39ff14;">❄️</div>
+    </div>
+
+    <script>
+        /**
+         * COMMAND 1: UNIQUE BUFFER SYSTEM
+         * Using a 1D Flat Buffer (Array) to represent the 2D grid.
+         * Index = y * COLS + x
+         * Why? Faster iteration and memory locality compared to array-of-arrays.
+         */
+        const COLS = 10;
+        const ROWS = 20;
+        const BLOCK_SIZE = 35; // INCREASED SIZE
+        let gridStateBuffer = new Array(COLS * ROWS).fill(0); // 0 = empty, 1-7 = colors
+
+        /**
+         * COMMAND 2: LEVEL ARCHITECTURE
+         * Structured data defining progression.
+         * Drop interval decreases non-linearly.
+         */
+        const LEVEL_MANIFEST = {
+            1: { speed: 1000, color: '#00f3ff' },
+            2: { speed: 850, color: '#00f3ff' },
+            3: { speed: 720, color: '#ff00ff' },
+            4: { speed: 600, color: '#ff00ff' },
+            5: { speed: 500, color: '#39ff14' },
+            6: { speed: 400, color: '#39ff14' },
+            7: { speed: 300, color: '#bd00ff' },
+            8: { speed: 200, color: '#bd00ff' },
+            9: { speed: 150, color: '#ff0000' },
+            10: { speed: 100, color: '#ff0000' } // Max chaos
+        };
+
+        // --- GAME CONSTANTS & STATE ---
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const COLORS = [
+            null,
+            '#00f3ff', // I (Cyan)
+            '#0000ff', // J (Blue)
+            '#ffa500', // L (Orange)
+            '#ffff00', // O (Yellow)
+            '#39ff14', // S (Green)
+            '#bd00ff', // T (Purple)
+            '#ff0000'  // Z (Red)
+        ];
+
+        // Unique Feature State: Chrono Freeze
+        let chronoEnergy = 0; // 0 to 100
+        const MAX_ENERGY = 100;
+        let isTimeFrozen = false;
+        let freezeTimer = 0;
+
+        let gameState = {
+            score: 0,
+            level: 1,
+            dropCounter: 0,
+            lastTime: 0,
+            gameOver: false,
+            running: false
+        };
+
+        let player = {
+            pos: {x: 0, y: 0},
+            matrix: null,
+            score: 0
+        };
+
+        // --- TETROMINO DEFINITIONS ---
+        function createPiece(type) {
+            if (type === 'I') {
+                return [
+                    [0, 1, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 1, 0, 0],
+                ];
+            } else if (type === 'L') {
+                return [
+                    [0, 2, 0],
+                    [0, 2, 0],
+                    [0, 2, 2],
+                ];
+            } else if (type === 'J') {
+                return [
+                    [0, 3, 0],
+                    [0, 3, 0],
+                    [3, 3, 0],
+                ];
+            } else if (type === 'O') {
+                return [
+                    [4, 4],
+                    [4, 4],
+                ];
+            } else if (type === 'Z') {
+                return [
+                    [5, 5, 0],
+                    [0, 5, 5],
+                    [0, 0, 0],
+                ];
+            } else if (type === 'S') {
+                return [
+                    [0, 6, 6],
+                    [6, 6, 0],
+                    [0, 0, 0],
+                ];
+            } else if (type === 'T') {
+                return [
+                    [0, 7, 0],
+                    [7, 7, 7],
+                    [0, 0, 0],
+                ];
+            }
+        }
+
+        // --- ENGINE CORE ---
+
+        function initGame() {
+            gridStateBuffer.fill(0);
+            gameState.score = 0;
+            gameState.level = 1;
+            gameState.gameOver = false;
+            gameState.running = true;
+            gameState.dropCounter = 0;
+            gameState.lastTime = 0;
+            
+            chronoEnergy = 50; // Start with half energy
+            updateChronoUI();
+            
+            updateScoreUI();
+            playerReset();
+            
+            document.getElementById('start-overlay').style.display = 'none';
+            requestAnimationFrame(update);
+        }
+
+        function playerReset() {
+            const pieces = 'ILJOTSZ';
+            player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+            player.pos.y = 0;
+            player.pos.x = (COLS / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            
+            if (collide(gridStateBuffer, player)) {
+                gameState.gameOver = true;
+                gameState.running = false;
+                document.getElementById('start-overlay').style.display = 'flex';
+                document.querySelector('#start-overlay h1').innerText = "SYSTEM FAILURE";
+                document.querySelector('#start-overlay button').innerText = "REBOOT";
+            }
+        }
+
+        /**
+         * COMMAND 3: DIFFICULTY SCALING LOGIC
+         * Retrieves speed from Manifest based on current level.
+         */
+        function getDropInterval() {
+            const levelData = LEVEL_MANIFEST[gameState.level] || LEVEL_MANIFEST[10];
+            return levelData.speed;
+        }
+
+        function playerDrop() {
+            player.pos.y++;
+            if (collide(gridStateBuffer, player)) {
+                player.pos.y--;
+                merge(gridStateBuffer, player);
+                playerReset();
+                arenaSweep();
+            }
+            gameState.dropCounter = 0;
+        }
+
+        function playerMove(dir) {
+            player.pos.x += dir;
+            if (collide(gridStateBuffer, player)) {
+                player.pos.x -= dir;
+            }
+        }
+
+        function playerRotate(dir) {
+            const pos = player.pos.x;
+            let offset = 1;
+            rotate(player.matrix, dir);
+            while (collide(gridStateBuffer, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotate(player.matrix, -dir);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+        }
+
+        function rotate(matrix, dir) {
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            if (dir > 0) {
+                matrix.forEach(row => row.reverse());
+            } else {
+                matrix.reverse();
+            }
+        }
+
+        /**
+         * Buffer Collision Logic
+         * Translates 2D player coords to 1D buffer index
+         */
+        function collide(buffer, player) {
+            const m = player.matrix;
+            const o = player.pos;
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 &&
+                       (buffer[(y + o.y) * COLS + (x + o.x)] !== 0 ||
+                        (y + o.y) >= ROWS ||
+                        (x + o.x) < 0 ||
+                        (x + o.x) >= COLS)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function merge(buffer, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        const index = (y + player.pos.y) * COLS + (x + player.pos.x);
+                        buffer[index] = value;
+                    }
+                });
+            });
+        }
+
+        function arenaSweep() {
+            let rowCount = 1;
+            outer: for (let y = ROWS - 1; y > 0; --y) {
+                for (let x = 0; x < COLS; ++x) {
+                    if (gridStateBuffer[y * COLS + x] === 0) {
+                        continue outer;
+                    }
+                }
+
+                // Row is full. Remove it from buffer (Splice logic adapted for flat array)
+                // In flat array: Shift everything above 'y' down by 1 row
+                const rowStart = y * COLS;
+                gridStateBuffer.splice(rowStart, COLS);
+                // Add empty row at top
+                gridStateBuffer.unshift(...new Array(COLS).fill(0));
+                
+                // Score & Energy Logic
+                gameState.score += rowCount * 10;
+                rowCount *= 2;
+                
+                // Add Energy for Unique Feature
+                chronoEnergy = Math.min(MAX_ENERGY, chronoEnergy + 20); 
+                updateChronoUI();
+                
+                y++; // check same row again (since we shifted down)
+            }
+            
+            // Level Up Check
+            if (gameState.score > gameState.level * 200) {
+                if (gameState.level < 10) gameState.level++;
+            }
+            updateScoreUI();
+        }
+
+        /**
+         * COMMAND 4: UNIQUE FEATURE SIGNATURE - "CHRONO FREEZE"
+         * Stops the automatic drop timer for 3 seconds.
+         */
+        function toggleTimeFreeze() {
+            if (isTimeFrozen) return; // Already frozen
+            
+            if (chronoEnergy >= 30) {
+                chronoEnergy -= 30;
+                isTimeFrozen = true;
+                updateChronoUI();
+                document.getElementById('freeze-effect').style.display = 'block';
+                
+                setTimeout(() => {
+                    isTimeFrozen = false;
+                    document.getElementById('freeze-effect').style.display = 'none';
+                }, 3000); // 3 Seconds freeze
+            }
+        }
+
+        function updateChronoUI() {
+            const fill = document.getElementById('chrono-fill');
+            fill.style.width = chronoEnergy + '%';
+        }
+
+        function updateScoreUI() {
+            document.getElementById('score-val').innerText = gameState.score;
+            document.getElementById('level-val').innerText = gameState.level;
+        }
+
+        // --- DRAWING ---
+
+        function drawMatrix(matrix, offset) {
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        ctx.fillStyle = COLORS[value];
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = COLORS[value];
+                        ctx.fillRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        
+                        // Inner detail
+                        ctx.fillStyle = "rgba(255,255,255,0.2)";
+                        ctx.fillRect((x + offset.x) * BLOCK_SIZE + 2, (y + offset.y) * BLOCK_SIZE + 2, BLOCK_SIZE-4, BLOCK_SIZE-4);
+                    }
+                });
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBuffer() {
+            for (let i = 0; i < gridStateBuffer.length; i++) {
+                if (gridStateBuffer[i] !== 0) {
+                    const x = i % COLS;
+                    const y = Math.floor(i / COLS);
+                    const color = COLORS[gridStateBuffer[i]];
+                    
+                    ctx.fillStyle = color;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = color;
+                    ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    
+                    ctx.fillStyle = "rgba(0,0,0,0.2)";
+                    ctx.fillRect(x * BLOCK_SIZE + 5, y * BLOCK_SIZE + 5, BLOCK_SIZE - 10, BLOCK_SIZE - 10);
+                }
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawBuffer();
+            drawMatrix(player.matrix, player.pos);
+        }
+
+        // --- MAIN GAME LOOP (COMMAND 5) ---
+        function update(time = 0) {
+            if (!gameState.running) return;
+
+            const deltaTime = time - gameState.lastTime;
+            gameState.lastTime = time;
+
+            // Only increment drop timer if time is NOT frozen
+            if (!isTimeFrozen) {
+                gameState.dropCounter += deltaTime;
+                if (gameState.dropCounter > getDropInterval()) {
+                    playerDrop();
+                }
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        // --- INPUT HANDLING ---
+        document.addEventListener('keydown', event => {
+            if (!gameState.running) return;
+            
+            if (event.keyCode === 37) { // Left
+                playerMove(-1);
+            } else if (event.keyCode === 39) { // Right
+                playerMove(1);
+            } else if (event.keyCode === 40) { // Down
+                playerDrop();
+            } else if (event.keyCode === 38) { // Up (Rotate)
+                playerRotate(1);
+            } else if (event.keyCode === 16) { // Shift (Unique Feature)
+                toggleTimeFreeze();
+            }
+        });
+
+        // Mobile Controls
+        document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); playerMove(-1); });
+        document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); playerMove(1); });
+        document.getElementById('btn-down').addEventListener('touchstart', (e) => { e.preventDefault(); playerDrop(); });
+        document.getElementById('btn-rot').addEventListener('touchstart', (e) => { e.preventDefault(); playerRotate(1); });
+        document.getElementById('btn-freeze').addEventListener('touchstart', (e) => { e.preventDefault(); toggleTimeFreeze(); });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            initGame();
+        });
+
+    </script>
+</body>
+</html>

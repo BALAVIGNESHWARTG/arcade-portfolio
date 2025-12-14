@@ -1,1 +1,536 @@
-<!DOCTYPE html><html><head><title>Coming Soon: infinite-runner</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>infinite-runner - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Runner: Gravity Shift</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700&display=swap');
+
+        :root {
+            --bg-color: #050510;
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #39ff14;
+            --hazard-red: #ff0000;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Rajdhani', sans-serif;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 400px;
+            border-top: 2px solid var(--neon-cyan);
+            border-bottom: 2px solid var(--neon-cyan);
+            background: linear-gradient(90deg, #0a0a1a 0%, #000 50%, #0a0a1a 100%);
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Press Start 2P', cursive;
+            color: var(--neon-cyan);
+            text-shadow: 0 0 10px var(--neon-cyan);
+            font-size: 14px;
+        }
+
+        #gravity-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--neon-pink);
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            opacity: 0.8;
+            transition: transform 0.2s;
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-family: 'Press Start 2P', cursive;
+            color: var(--neon-green);
+            font-size: 24px;
+            text-align: center;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px var(--neon-green);
+        }
+
+        p {
+            color: #ccc;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        button {
+            background: transparent;
+            color: var(--neon-cyan);
+            border: 2px solid var(--neon-cyan);
+            padding: 15px 30px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: var(--neon-cyan);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-cyan);
+        }
+
+        .hidden { display: none !important; }
+
+        /* Mobile Tap Zone */
+        #tap-zone {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5;
+            display: none; /* Active via JS */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 
+    🛑 ARCHITECTURAL NOTES:
+    - Buffer System: 'chunkBuffer' (Recycling terrain segments)
+    - Level System: 'SPEED_CURVE' (Distance-based velocity scaling)
+    - Unique Feature: 'Gravity Flip' (No jumping, only inversion)
+    -->
+
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="tap-zone"></div>
+
+        <div id="ui-layer">
+            <div class="hud-top">
+                <span>DIST: <span id="dist-val">0</span>m</span>
+                <span>SPD: <span id="speed-val">100</span>%</span>
+            </div>
+            <div id="gravity-indicator">G-FORCE: NORMAL</div>
+        </div>
+
+        <div id="start-screen">
+            <h1>CYBER RUNNER:<br>GRAVITY SHIFT</h1>
+            <p>SPACE or TAP to Flip Gravity<br>Avoid Red Hazards</p>
+            <button id="start-btn">INITIATE RUN</button>
+        </div>
+
+        <div id="game-over-screen" class="hidden">
+            <h1 style="color: var(--hazard-red);">SYSTEM CRASH</h1>
+            <p>DISTANCE: <span id="final-dist">0</span>m</p>
+            <button id="restart-btn">REBOOT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // --- GAME CONFIG ---
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 400;
+        
+        // COMMAND 1: BUFFER SYSTEM
+        // We recycle terrain "chunks" instead of creating thousands of objects
+        const CHUNK_SIZE = 50; 
+        const BUFFER_SIZE = 20; // How many chunks in memory
+        let chunkBuffer = []; 
+
+        // COMMAND 2: LEVEL ARCHITECTURE
+        // Speed increases based on distance traveled
+        const LEVEL_CURVE = [
+            { dist: 0, speed: 300, density: 0.1 },
+            { dist: 500, speed: 350, density: 0.2 },
+            { dist: 1000, speed: 400, density: 0.3 },
+            { dist: 2000, speed: 500, density: 0.4 },
+            { dist: 5000, speed: 700, density: 0.5 } // Max Chaos
+        ];
+
+        let gameState = {
+            running: false,
+            distance: 0,
+            speed: 300,
+            lastTime: 0,
+            gravityInverted: false,
+            gravityTransition: 0 // 0 to 1 for animation
+        };
+
+        const player = {
+            x: 100,
+            y: 200,
+            width: 30,
+            height: 30,
+            vy: 0,
+            grounded: false,
+            color: '#00f3ff',
+            trail: []
+        };
+
+        // --- ENGINE CORE ---
+
+        function resize() {
+            // Internal resolution fixed, visual scaled via CSS
+            canvas.width = GAME_WIDTH;
+            canvas.height = GAME_HEIGHT;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function initGame() {
+            gameState.running = true;
+            gameState.distance = 0;
+            gameState.speed = 300;
+            gameState.gravityInverted = false;
+            gameState.lastTime = performance.now();
+            
+            player.y = GAME_HEIGHT - 60;
+            player.vy = 0;
+            player.trail = [];
+            
+            // Initialize Buffer
+            chunkBuffer = [];
+            for(let i=0; i<BUFFER_SIZE; i++) {
+                chunkBuffer.push(createChunk(i * CHUNK_SIZE));
+            }
+
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            requestAnimationFrame(gameLoop);
+        }
+
+        function createChunk(xOffset) {
+            return {
+                x: xOffset,
+                width: CHUNK_SIZE,
+                hasHazardTop: false,
+                hasHazardBottom: false,
+                passed: false
+            };
+        }
+
+        // Logic to generate obstacles based on difficulty
+        function recycleChunk(chunk) {
+            // Find the furthest chunk to append to
+            const maxX = Math.max(...chunkBuffer.map(c => c.x));
+            chunk.x = maxX + CHUNK_SIZE;
+            chunk.passed = false;
+            
+            // Difficulty scaling
+            let currentParams = LEVEL_CURVE[0];
+            for(let level of LEVEL_CURVE) {
+                if (gameState.distance >= level.dist) currentParams = level;
+            }
+            gameState.speed = currentParams.speed;
+
+            // Generation logic
+            const rng = Math.random();
+            chunk.hasHazardBottom = false;
+            chunk.hasHazardTop = false;
+
+            if (rng < currentParams.density) {
+                // Determine hazard type
+                if (Math.random() > 0.5) chunk.hasHazardBottom = true;
+                else chunk.hasHazardTop = true;
+                
+                // Rarely spawn both (Extreme difficulty)
+                if (gameState.distance > 3000 && Math.random() < 0.1) {
+                    chunk.hasHazardBottom = true;
+                    chunk.hasHazardTop = true;
+                }
+            }
+        }
+
+        /**
+         * COMMAND 4: UNIQUE FEATURE - GRAVITY FLIP
+         * Inverts the physics engine constants.
+         */
+        function flipGravity() {
+            if (!gameState.running) return;
+            // Only allow flip if player is touching a surface (optional difficulty modifier)
+            // For this arcade feel, we allow mid-air flips for "Matrix" style dodging
+            gameState.gravityInverted = !gameState.gravityInverted;
+            
+            const indicator = document.getElementById('gravity-indicator');
+            indicator.innerText = gameState.gravityInverted ? "G-FORCE: INVERTED" : "G-FORCE: NORMAL";
+            indicator.style.color = gameState.gravityInverted ? "#ff00ff" : "#00f3ff";
+        }
+
+        function update(dt) {
+            // Update Speed & Distance
+            const moveAmt = gameState.speed * dt;
+            gameState.distance += moveAmt / 10;
+            
+            document.getElementById('dist-val').innerText = Math.floor(gameState.distance);
+            document.getElementById('speed-val').innerText = Math.floor(gameState.speed / 3);
+
+            // Update Chunks
+            chunkBuffer.forEach(chunk => {
+                chunk.x -= moveAmt;
+                if (chunk.x + chunk.width < 0) {
+                    recycleChunk(chunk);
+                }
+            });
+
+            // Update Player Physics
+            const GRAVITY_FORCE = 2000;
+            const FLIP_SPEED = 15;
+
+            // Smooth transition for visual rotation
+            if (gameState.gravityInverted) {
+                if (gameState.gravityTransition < 1) gameState.gravityTransition += dt * FLIP_SPEED;
+            } else {
+                if (gameState.gravityTransition > 0) gameState.gravityTransition -= dt * FLIP_SPEED;
+            }
+            
+            // Apply Gravity
+            if (gameState.gravityInverted) {
+                player.vy -= GRAVITY_FORCE * dt;
+            } else {
+                player.vy += GRAVITY_FORCE * dt;
+            }
+
+            player.y += player.vy * dt;
+
+            // Floor/Ceiling Collision
+            if (!gameState.gravityInverted) {
+                // Normal Gravity (Floor is bottom)
+                if (player.y + player.height > GAME_HEIGHT - 10) {
+                    player.y = GAME_HEIGHT - 10 - player.height;
+                    player.vy = 0;
+                    player.grounded = true;
+                } else {
+                    player.grounded = false;
+                }
+                // Ceiling cap
+                if (player.y < 10) {
+                    player.y = 10;
+                    player.vy = 0;
+                }
+            } else {
+                // Inverted Gravity (Floor is top)
+                if (player.y < 10) {
+                    player.y = 10;
+                    player.vy = 0;
+                    player.grounded = true;
+                } else {
+                    player.grounded = false;
+                }
+                // Floor cap
+                if (player.y + player.height > GAME_HEIGHT - 10) {
+                    player.y = GAME_HEIGHT - 10 - player.height;
+                    player.vy = 0;
+                }
+            }
+
+            // Hazard Collision
+            // We optimize by only checking chunks near player
+            const playerLeft = player.x;
+            const playerRight = player.x + player.width;
+            
+            // Hitbox slightly smaller for forgiveness
+            const hitX = player.x + 5;
+            const hitY = player.y + 5;
+            const hitW = player.width - 10;
+            const hitH = player.height - 10;
+
+            for (let chunk of chunkBuffer) {
+                if (chunk.x < playerRight && chunk.x + chunk.width > playerLeft) {
+                    // Check Bottom Hazard
+                    if (chunk.hasHazardBottom) {
+                        const hazardH = 40;
+                        const hazardY = GAME_HEIGHT - 10 - hazardH;
+                        if (rectIntersect(hitX, hitY, hitW, hitH, chunk.x + 5, hazardY, CHUNK_SIZE - 10, hazardH)) {
+                            gameOver();
+                        }
+                    }
+                    // Check Top Hazard
+                    if (chunk.hasHazardTop) {
+                        const hazardH = 40;
+                        const hazardY = 10;
+                        if (rectIntersect(hitX, hitY, hitW, hitH, chunk.x + 5, hazardY, CHUNK_SIZE - 10, hazardH)) {
+                            gameOver();
+                        }
+                    }
+                }
+            }
+            
+            // Trail Effect
+            player.trail.push({x: player.x, y: player.y});
+            if (player.trail.length > 10) player.trail.shift();
+        }
+
+        function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+            return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+        }
+
+        function draw() {
+            // Clear
+            ctx.fillStyle = '#050510';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            // Draw Grid Lines (Parallax feel)
+            ctx.strokeStyle = 'rgba(0, 243, 255, 0.1)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // Moving vertical lines
+            const offset = (gameState.distance * 10) % 50;
+            for(let i=0; i<GAME_WIDTH/50 + 1; i++) {
+                const x = (i * 50) - offset;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, GAME_HEIGHT);
+            }
+            // Horizontal horizon lines
+            ctx.moveTo(0, GAME_HEIGHT/2);
+            ctx.lineTo(GAME_WIDTH, GAME_HEIGHT/2);
+            ctx.stroke();
+
+            // Draw Chunks (Hazards)
+            chunkBuffer.forEach(chunk => {
+                if (chunk.hasHazardBottom) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#ff0000';
+                    ctx.beginPath();
+                    ctx.moveTo(chunk.x, GAME_HEIGHT - 10);
+                    ctx.lineTo(chunk.x + CHUNK_SIZE/2, GAME_HEIGHT - 50);
+                    ctx.lineTo(chunk.x + CHUNK_SIZE, GAME_HEIGHT - 10);
+                    ctx.fill();
+                }
+                if (chunk.hasHazardTop) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#ff0000';
+                    ctx.beginPath();
+                    ctx.moveTo(chunk.x, 10);
+                    ctx.lineTo(chunk.x + CHUNK_SIZE/2, 50);
+                    ctx.lineTo(chunk.x + CHUNK_SIZE, 10);
+                    ctx.fill();
+                }
+            });
+
+            // Draw Player Trail
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = player.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=0; i<player.trail.length; i++) {
+                const p = player.trail[i];
+                if (i===0) ctx.moveTo(p.x + player.width/2, p.y + player.height/2);
+                else ctx.lineTo(p.x + player.width/2, p.y + player.height/2);
+            }
+            ctx.stroke();
+
+            // Draw Player
+            ctx.save();
+            ctx.translate(player.x + player.width/2, player.y + player.height/2);
+            // Rotate based on gravity transition
+            ctx.rotate(gameState.gravityTransition * Math.PI);
+            
+            ctx.fillStyle = player.color;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = player.color;
+            ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+            
+            // Eye detail
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(5, -5, 10, 5);
+            
+            ctx.restore();
+
+            // Draw Floor/Ceiling lines
+            ctx.fillStyle = '#00f3ff';
+            ctx.fillRect(0, 0, GAME_WIDTH, 10); // Ceiling
+            ctx.fillRect(0, GAME_HEIGHT-10, GAME_WIDTH, 10); // Floor
+        }
+
+        function gameOver() {
+            gameState.running = false;
+            document.getElementById('final-dist').innerText = Math.floor(gameState.distance);
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        function gameLoop(time) {
+            if (!gameState.running) return;
+            const dt = Math.min((time - gameState.lastTime) / 1000, 0.1);
+            gameState.lastTime = time;
+
+            update(dt);
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Inputs
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') flipGravity();
+        });
+
+        const tapZone = document.getElementById('tap-zone');
+        tapZone.style.display = 'block'; // Enable for mouse/touch
+        tapZone.addEventListener('mousedown', (e) => {
+             e.preventDefault();
+             flipGravity();
+        });
+        tapZone.addEventListener('touchstart', (e) => {
+             e.preventDefault();
+             flipGravity();
+        });
+
+        document.getElementById('start-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent triggering flip immediately
+            initGame();
+        });
+        document.getElementById('restart-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            initGame();
+        });
+
+    </script>
+</body>
+</html>
