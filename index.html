@@ -142,7 +142,7 @@
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, #00f3ff, #39ff14);
-            width: 4%; /* Updated for new game */
+            width: 6%; /* 6 out of 100 games */
             box-shadow: 0 0 10px var(--neon-green);
             transition: width 1s ease-in-out;
         }
@@ -331,11 +331,11 @@
         <div class="progress-panel">
             <div class="progress-title">SYSTEM STATUS: BUILDING 100 GAMES</div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: 4%"></div>
+                <div class="progress-fill" style="width: 6%"></div>
             </div>
             <ul class="progress-stats">
-                <li class="stat-item"><span style="color: var(--neon-green)">4</span> COMPLETED</li>
-                <li class="stat-item"><span style="color: var(--neon-blue)">96</span> REMAINING</li>
+                <li class="stat-item"><span style="color: var(--neon-green)">6</span> COMPLETED</li>
+                <li class="stat-item"><span style="color: var(--neon-blue)">94</span> REMAINING</li>
                 <li class="stat-item"><span style="color: var(--neon-pink)">100%</span> VANILLA JS</li>
             </ul>
         </div>
@@ -421,18 +421,19 @@
             </div>
         </a>
 
-        <!-- UPCOMING: PAC-MAN -->
-        <div class="game-card coming-soon">
-            <span class="badge badge-dev">TIER 4</span>
-            <div class="card-image" style="color: #555; text-shadow: none;">👻</div>
+        <!-- GAME 6: NEON PAC-MAZE -->
+        <a href="./pac-man/index.html" class="game-card">
+            <span class="badge badge-completed">COMPLETED</span>
+            <div class="card-image">👻</div>
             <div class="card-content">
-                <div class="card-title">PAC-MAZE</div>
+                <div class="card-title">NEON PAC-MAZE</div>
                 <p class="card-desc">
-                    Complex AI ghost logic, pathfinding, and maze generation.
-                    <br><br><i>In Development...</i>
+                    High-speed grid chase. Features "Neon Overdrive" invincibility mechanic and smart ghost tracking.
+                    <br><span style="color: #666; font-size: 0.8em;">Tier 4: Expert</span>
                 </p>
+                <div class="play-btn">PLAY NOW</div>
             </div>
-        </div>
+        </a>
 
     </div>
 
