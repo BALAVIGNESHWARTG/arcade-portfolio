@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Synthwave Rider</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+
+        :root {
+            --sky-top: #1a0b2e;
+            --sky-bot: #bd1550;
+            --sun: #e9b64a;
+            --grid: #e94560;
+            --road: #1a1a2e;
+            --road-light: #2c2c54;
+            --rumble-light: #fff;
+            --rumble-dark: #e94560;
+            --line: #fff;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #000; color: #fff;
+            font-family: 'Orbitron', sans-serif; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 500px;
+            background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bot) 50%, var(--road) 50%);
+            box-shadow: 0 0 50px rgba(233, 69, 96, 0.4); border: 2px solid #e94560;
+            overflow: hidden; border-radius: 5px;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        /* Sun Graphic */
+        #sun {
+            position: absolute; top: 10%; left: 50%; transform: translateX(-50%);
+            width: 200px; height: 200px; border-radius: 50%;
+            background: linear-gradient(180deg, #f1c40f 0%, #e67e22 50%, #e74c3c 100%);
+            box-shadow: 0 0 50px #e67e22; z-index: 2;
+        }
+        /* Sun stripes */
+        .sun-stripe {
+            position: absolute; width: 100%; left: 0; background: var(--sky-bot);
+        }
+        #s1 { top: 60%; height: 4px; } #s2 { top: 70%; height: 8px; }
+        #s3 { top: 82%; height: 12px; } #s4 { top: 95%; height: 20px; }
+
+        .hud {
+            position: absolute; top: 15px; left: 20px; right: 20px; display: flex; justify-content: space-between;
+            font-size: 24px; z-index: 10; pointer-events: none; text-shadow: 0 0 10px #e94560;
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(26, 11, 46, 0.9); border: 3px solid #e94560; padding: 40px;
+            text-align: center; box-shadow: 0 0 30px rgba(233, 69, 96, 0.6); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 450px;
+        }
+        h1 { color: #f1c40f; margin-top: 0; font-size: 40px; text-shadow: 0 0 10px #f1c40f; margin-bottom: 10px; }
+        p { color: #aaa; line-height: 1.5; font-size: 16px; margin-bottom: 30px; letter-spacing: 1px; }
+        button {
+            background: transparent; color: #00ffcc; border: 2px solid #00ffcc;
+            padding: 15px 40px; font-family: 'Orbitron', sans-serif; font-size: 20px; cursor: pointer; transition: 0.2s;
+            border-radius: 5px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.3); text-transform: uppercase;
+        }
+        button:hover { background: #00ffcc; color: #000; box-shadow: 0 0 30px #00ffcc; }
+        .hidden { display: none !important; }
+
+        #controls {
+            position: absolute; bottom: 10px; left: 0; width: 100%; height: 50%;
+            display: flex; z-index: 20;
+        }
+        .btn-zone { flex: 1; display: flex; align-items:flex-end; padding: 20px; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="sun">
+            <div class="sun-stripe" id="s1"></div><div class="sun-stripe" id="s2"></div>
+            <div class="sun-stripe" id="s3"></div><div class="sun-stripe" id="s4"></div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud">
+            <div id="scoreEl">SCORE: 0</div>
+            <div id="speedEl">0 KM/H</div>
+        </div>
+        
+        <div id="controls">
+            <div class="btn-zone" id="zone-left"></div>
+            <div class="btn-zone" id="zone-right"></div>
+        </div>
+
+        <div id="start-screen" class="modal">
+            <h1>Synthwave Rider</h1>
+            <p>Tap Left/Right or use Arrows to steer.<br>Stay on the road.<br>Drive fast, don't crash!</p>
+            <button id="start-btn">IGNITION</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 style="color:#e94560; text-shadow: 0 0 10px #e94560;">WRECKED</h1>
+            <p id="final-stats">Distance: 0</p>
+            <button id="restart-btn" style="color:#e94560; border-color:#e94560;">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let distance = 0;
+        let speed = 0;
+        let maxSpeed = 200; // units per frame
+        let playerX = 0; // -1 to 1 (left to right of road)
+        let accel = 0; // steering accel
+        
+        // Pseudo 3D Constants
+        const SEGMENT_LENGTH = 200;
+        const RUMBLE_LENGTH = 3;
+        const DRAW_DISTANCE = 300; // segments
+        const ROAD_WIDTH = 2000;
+        
+        let segments = [];
+        let trackLength = 0;
+
+        // Colors
+        const LIGHT = { road: '#2c2c54', grass: '#090a0f', rumble: '#fff', lane: '#fff' };
+        const DARK = { road: '#1a1a2e', grass: '#050508', rumble: '#e94560' };
+
+        function buildTrack() {
+            segments = [];
+            for (let i = 0; i < 2000; i++) {
+                let curve = 0;
+                let hill = 0;
+                
+                // Add curves
+                if (i > 50 && i < 300) curve = 2;
+                if (i > 400 && i < 600) curve = -3;
+                if (i > 700 && i < 1000) { curve = 4; hill = 40; }
+                if (i > 1100 && i < 1500) { curve = -4; hill = -40; }
+                if (i > 1600 && i < 1900) { curve = Math.sin(i/20) * 5; } // zig zag
+
+                segments.push({
+                    index: i,
+                    p1: { x: 0, y: 0, z: i * SEGMENT_LENGTH, screen: {x:0, y:0, w:0} },
+                    p2: { x: 0, y: 0, z: (i+1) * SEGMENT_LENGTH, screen: {x:0, y:0, w:0} },
+                    curve: curve,
+                    hill: hill,
+                    color: Math.floor(i / RUMBLE_LENGTH) % 2 ? LIGHT : DARK
+                });
+            }
+            trackLength = segments.length * SEGMENT_LENGTH;
+        }
+
+        // Project 3D coordinate to 2D screen
+        function project(p, cameraX, cameraY, cameraZ, cameraDepth) {
+            let transX = p.x - cameraX;
+            let transY = p.y - cameraY;
+            let transZ = p.z - cameraZ;
+            
+            p.screen.scale = cameraDepth / transZ;
+            p.screen.x = Math.round((width / 2) + (p.screen.scale * transX * width / 2));
+            p.screen.y = Math.round((height / 2) - (p.screen.scale * transY * height / 2));
+            p.screen.w = Math.round((p.screen.scale * ROAD_WIDTH * width / 2));
+        }
+
+        function drawPolygon(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.lineTo(x3, y3);
+            ctx.lineTo(x4, y4);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function update() {
+            if (speed < maxSpeed) speed += 2;
+            distance += speed;
+            
+            // Loop track
+            while (distance >= trackLength) distance -= trackLength;
+
+            // Steering
+            playerX += accel * (speed/maxSpeed);
+            if (playerX < -1.5 || playerX > 1.5) {
+                // Off road
+                if (speed > 50) speed -= 5; // decelerate
+                if (Math.abs(playerX) > 2.0) {
+                    die(); // crash
+                }
+            }
+
+            // Centripetal force (curves push car outwards)
+            let baseSegment = segments[Math.floor(distance / SEGMENT_LENGTH) % segments.length];
+            playerX -= (baseSegment.curve * (speed/maxSpeed)) * 0.02;
+
+            document.getElementById('scoreEl').textContent = `SCORE: ${Math.floor(distance/100)}`;
+            document.getElementById('speedEl').textContent = `${Math.floor(speed)} KM/H`;
+        }
+
+        function draw() {
+            // Draw background gradient grid (retro aesthetic)
+            ctx.clearRect(0, 0, width, height);
+            
+            let baseSegment = segments[Math.floor(distance / SEGMENT_LENGTH) % segments.length];
+            
+            let cameraX = playerX * ROAD_WIDTH;
+            let cameraY = 1000; // height above road
+            let cameraZ = distance;
+            let cameraDepth = 0.8;
+            
+            let maxy = height;
+            
+            let dx = - (baseSegment.curve * playerX);
+            let x = 0;
+            
+            // Render segments
+            for (let n = 0; n < DRAW_DISTANCE; n++) {
+                let segmentIndex = (Math.floor(distance / SEGMENT_LENGTH) + n) % segments.length;
+                let segment = segments[segmentIndex];
+                
+                // Looping z
+                segment.p1.z = (Math.floor(distance / SEGMENT_LENGTH) + n) * SEGMENT_LENGTH;
+                segment.p2.z = (Math.floor(distance / SEGMENT_LENGTH) + n + 1) * SEGMENT_LENGTH;
+                
+                // Hill elevation
+                segment.p1.y = Math.sin(segment.index * 0.1) * segment.hill * 100;
+                segment.p2.y = Math.sin((segment.index+1) * 0.1) * segment.hill * 100;
+
+                project(segment.p1, cameraX - x, cameraY + segment.p1.y, cameraZ, cameraDepth);
+                project(segment.p2, cameraX - x - dx, cameraY + segment.p2.y, cameraZ, cameraDepth);
+                
+                x += dx;
+                dx += segment.curve;
+
+                // Frustum culling
+                if (segment.p1.screen.scale < 0 || segment.p2.screen.scale < 0) continue;
+                if (segment.p2.screen.y >= maxy) continue;
+                
+                maxy = segment.p2.screen.y;
+                
+                let color = segment.color;
+                
+                // Draw Grass
+                drawPolygon(ctx, 0, segment.p2.screen.y, width, segment.p2.screen.y, 
+                                 width, segment.p1.screen.y, 0, segment.p1.screen.y, color.grass);
+                
+                // Draw Rumble strips
+                let r1 = segment.p1.screen.w * 1.2;
+                let r2 = segment.p2.screen.w * 1.2;
+                drawPolygon(ctx, segment.p1.screen.x - r1, segment.p1.screen.y,
+                                 segment.p2.screen.x - r2, segment.p2.screen.y,
+                                 segment.p2.screen.x + r2, segment.p2.screen.y,
+                                 segment.p1.screen.x + r1, segment.p1.screen.y, color.rumble);
+                
+                // Draw Road
+                let w1 = segment.p1.screen.w;
+                let w2 = segment.p2.screen.w;
+                drawPolygon(ctx, segment.p1.screen.x - w1, segment.p1.screen.y,
+                                 segment.p2.screen.x - w2, segment.p2.screen.y,
+                                 segment.p2.screen.x + w2, segment.p2.screen.y,
+                                 segment.p1.screen.x + w1, segment.p1.screen.y, color.road);
+
+                // Draw Lane Line
+                if (color.lane) {
+                    let lw1 = w1 * 0.05;
+                    let lw2 = w2 * 0.05;
+                    drawPolygon(ctx, segment.p1.screen.x - lw1, segment.p1.screen.y,
+                                     segment.p2.screen.x - lw2, segment.p2.screen.y,
+                                     segment.p2.screen.x + lw2, segment.p2.screen.y,
+                                     segment.p1.screen.x + lw1, segment.p1.screen.y, color.lane);
+                }
+            }
+
+            // Draw Player Car (Simple vector shape)
+            drawPlayer(width/2, height - 60);
+        }
+
+        function drawPlayer(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Lean based on steering
+            ctx.rotate(accel * 0.1);
+
+            // Car Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(-45, 15, 90, 20);
+
+            // Back Tires
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-50, 0, 20, 30);
+            ctx.fillRect(30, 0, 20, 30);
+            
+            // Car Body
+            ctx.fillStyle = '#00ffcc';
+            ctx.beginPath();
+            ctx.moveTo(-40, 20);
+            ctx.lineTo(-30, -10);
+            ctx.lineTo(30, -10);
+            ctx.lineTo(40, 20);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Taillights
+            ctx.fillStyle = '#ff0055';
+            ctx.fillRect(-35, 5, 20, 8);
+            ctx.fillRect(15, 5, 20, 8);
+            ctx.shadowColor = '#ff0055';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(-35, 5, 20, 8);
+            ctx.fillRect(15, 5, 20, 8);
+            ctx.shadowBlur = 0;
+            
+            // Rear Window
+            ctx.fillStyle = '#2a2d43';
+            ctx.beginPath();
+            ctx.moveTo(-25, -10);
+            ctx.lineTo(-15, -30);
+            ctx.lineTo(15, -30);
+            ctx.lineTo(25, -10);
+            ctx.closePath();
+            ctx.fill();
+
+            // Exhaust flame if speeding
+            if (speed > 100) {
+                ctx.fillStyle = '#f1c40f';
+                ctx.beginPath();
+                ctx.moveTo(-10, 20);
+                ctx.lineTo(0, 20 + Math.random()*20);
+                ctx.lineTo(10, 20);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function die() {
+            isRunning = false;
+            document.getElementById('final-stats').textContent = `Distance: ${Math.floor(distance/100)}`;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        // Input
+        let keys = {};
+        window.addEventListener('keydown', e => { keys[e.code] = true; });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+        
+        let touchLeft = false, touchRight = false;
+        document.getElementById('zone-left').addEventListener('touchstart', e => { e.preventDefault(); touchLeft = true; }, {passive:false});
+        document.getElementById('zone-left').addEventListener('touchend', e => { touchLeft = false; });
+        document.getElementById('zone-right').addEventListener('touchstart', e => { e.preventDefault(); touchRight = true; }, {passive:false});
+        document.getElementById('zone-right').addEventListener('touchend', e => { touchRight = false; });
+
+        // Update loop for input smoothing
+        setInterval(() => {
+            if (!isRunning) return;
+            if (keys['ArrowLeft'] || keys['KeyA'] || touchLeft) {
+                accel = Math.max(accel - 0.1, -0.2);
+            } else if (keys['ArrowRight'] || keys['KeyD'] || touchRight) {
+                accel = Math.min(accel + 0.1, 0.2);
+            } else {
+                accel *= 0.8; // friction
+            }
+        }, 1000/60);
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            distance = 0; speed = 0; playerX = 0; accel = 0;
+            buildTrack();
+            
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

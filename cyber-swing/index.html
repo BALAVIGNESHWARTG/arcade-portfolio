@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Swing</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500&display=swap');
+
+        :root {
+            --bg-top: #0a0a1a;
+            --bg-bot: #1a0a2a;
+            --player: #00ffff;
+            --rope: #ff00ff;
+            --ceiling: #2a2a4a;
+            --danger: #ff3333;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #000; color: #fff;
+            font-family: 'Teko', sans-serif; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 500px;
+            background: linear-gradient(180deg, var(--bg-top), var(--bg-bot));
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.2); border: 2px solid var(--player);
+            overflow: hidden; border-radius: 5px;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 10px; left: 20px; font-size: 36px; z-index: 10;
+            pointer-events: none; color: #fff; text-shadow: 0 0 10px var(--player);
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(10, 10, 26, 0.9); border: 3px solid var(--rope); padding: 30px;
+            text-align: center; box-shadow: 0 0 30px rgba(255, 0, 255, 0.4); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 400px;
+        }
+        h1 { margin-top: 0; font-size: 50px; color: var(--rope); text-shadow: 0 0 15px var(--rope); margin-bottom: 5px; }
+        p { font-size: 22px; margin-bottom: 25px; line-height: 1.2; color: #aaa; }
+        button {
+            background: transparent; color: var(--player); border: 2px solid var(--player);
+            padding: 10px 40px; font-family: 'Teko', sans-serif; font-size: 28px;
+            cursor: pointer; transition: 0.2s; border-radius: 5px; text-transform: uppercase;
+        }
+        button:hover { background: var(--player); color: #000; box-shadow: 0 0 20px var(--player); }
+        .hidden { display: none !important; }
+
+        #tap-zone {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud" id="scoreEl">0m</div>
+        <div id="tap-zone"></div>
+
+        <div id="start-screen" class="modal">
+            <h1>Cyber Swing</h1>
+            <p>Tap and hold to shoot your grapple.<br>Release to let go.<br>Don't fall!</p>
+            <button id="start-btn">SWING</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 style="color:var(--danger); text-shadow: 0 0 15px var(--danger);">PLUMMETED</h1>
+            <p id="final-stats">Distance: 0m</p>
+            <button id="restart-btn" style="color:var(--danger); border-color:var(--danger);">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let score = 0;
+        let cameraX = 0;
+
+        // Physics constants
+        const GRAVITY = 0.5;
+        const TERMINAL_VELOCITY = 15;
+        const GRAPPLE_SPEED = 30; // speed of the hook flying
+        
+        let player = {
+            x: 100, y: 200, vx: 5, vy: 0, radius: 15,
+            state: 'falling', // falling, shooting, swinging
+            angle: 0, aVelocity: 0, ropeLength: 0
+        };
+
+        let hook = { x: 0, y: 0, vx: 0, vy: 0, active: false };
+        let anchor = { x: 0, y: 0 };
+        
+        let ceilings = [];
+        let particles = [];
+
+        function generateLevel() {
+            ceilings = [];
+            // Safe start area
+            ceilings.push({ x: -100, w: 1000, h: 50 });
+            
+            let cx = 900;
+            for (let i=0; i<100; i++) {
+                // Gap
+                cx += 100 + Math.random() * 200;
+                // Ceiling block
+                let w = 200 + Math.random() * 300;
+                let h = 30 + Math.random() * 80;
+                ceilings.push({ x: cx, w: w, h: h });
+                cx += w;
+            }
+        }
+
+        function createSparks(x, y) {
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random()-0.5)*10, vy: Math.random()*5,
+                    life: 20, color: '#ff00ff'
+                });
+            }
+        }
+
+        function shootGrapple() {
+            if (player.state === 'falling') {
+                player.state = 'shooting';
+                hook.active = true;
+                hook.x = player.x; hook.y = player.y;
+                // Shoot up and right
+                hook.vx = 20; hook.vy = -20;
+            }
+        }
+
+        function releaseGrapple() {
+            if (player.state === 'swinging' || player.state === 'shooting') {
+                player.state = 'falling';
+                hook.active = false;
+                
+                // Convert angular velocity back to linear velocity
+                if (player.state !== 'shooting') { // if it was swinging
+                    player.vx = -player.ropeLength * player.aVelocity * Math.cos(player.angle);
+                    player.vy = -player.ropeLength * player.aVelocity * Math.sin(player.angle);
+                }
+            }
+        }
+
+        function update() {
+            cameraX = player.x - 200; // keep player on left side
+            score = Math.max(score, Math.floor(player.x / 100));
+            document.getElementById('scoreEl').textContent = `${score}m`;
+
+            if (player.state === 'falling') {
+                player.vy += GRAVITY;
+                if (player.vy > TERMINAL_VELOCITY) player.vy = TERMINAL_VELOCITY;
+                
+                player.x += player.vx;
+                player.y += player.vy;
+                
+                // Friction / drag
+                player.vx *= 0.99;
+                
+            } else if (player.state === 'shooting') {
+                player.vy += GRAVITY; // player still falls while shooting
+                player.x += player.vx;
+                player.y += player.vy;
+
+                // Move hook
+                hook.x += hook.vx;
+                hook.y += hook.vy;
+                
+                // Check if hook hit ceiling
+                let hit = false;
+                for (let c of ceilings) {
+                    if (hook.x > c.x && hook.x < c.x + c.w && hook.y <= c.h) {
+                        hit = true;
+                        anchor.x = hook.x;
+                        anchor.y = c.h;
+                        break;
+                    }
+                }
+                
+                if (hit) {
+                    player.state = 'swinging';
+                    createSparks(anchor.x, anchor.y);
+                    
+                    // Calculate initial swing parameters
+                    let dx = player.x - anchor.x;
+                    let dy = player.y - anchor.y;
+                    player.ropeLength = Math.hypot(dx, dy);
+                    player.angle = Math.atan2(dx, dy); // Angle relative to downward vertical
+                    
+                    // Convert linear velocity to angular velocity
+                    // v = r * w => w = v / r
+                    // We project the velocity vector onto the tangent of the circle
+                    let tangentVx = Math.cos(player.angle);
+                    let tangentVy = -Math.sin(player.angle);
+                    let vTangent = player.vx * tangentVx + player.vy * tangentVy;
+                    
+                    player.aVelocity = vTangent / player.ropeLength;
+                }
+                
+                // If hook misses and goes off screen
+                if (hook.y < -100 || hook.x > player.x + 800) {
+                    releaseGrapple();
+                }
+                
+            } else if (player.state === 'swinging') {
+                // Pendulum physics
+                let force = -GRAVITY * Math.sin(player.angle) / player.ropeLength;
+                player.aVelocity += force;
+                player.aVelocity *= 0.995; // air resistance
+                player.angle += player.aVelocity;
+                
+                // Convert polar to cartesian
+                player.x = anchor.x + player.ropeLength * Math.sin(player.angle);
+                player.y = anchor.y + player.ropeLength * Math.cos(player.angle);
+
+                // Reel in the rope slightly for a boost
+                if (player.ropeLength > 50) {
+                    player.ropeLength -= 1;
+                }
+            }
+
+            // Death conditions
+            if (player.y > height + 50 || player.x < cameraX - 50) {
+                die();
+                return;
+            }
+
+            // Particles
+            if (frameCount % 3 === 0 && (player.vx > 5 || Math.abs(player.aVelocity) > 0.05)) {
+                particles.push({
+                    x: player.x, y: player.y,
+                    vx: -2 - Math.random()*2, vy: (Math.random()-0.5)*2,
+                    life: 20, color: 'rgba(0, 255, 255, 0.5)'
+                });
+            }
+
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.life--;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+            frameCount++;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            ctx.save();
+            ctx.translate(-cameraX, 0);
+
+            // Draw Ceilings
+            ctx.fillStyle = 'var(--ceiling)';
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 2;
+            ceilings.forEach(c => {
+                if (c.x > cameraX + width || c.x + c.w < cameraX) return;
+                ctx.fillRect(c.x, 0, c.w, c.h);
+                ctx.beginPath();
+                ctx.moveTo(c.x, c.h); ctx.lineTo(c.x + c.w, c.h);
+                ctx.stroke();
+                
+                // Tech details
+                ctx.fillStyle = '#111';
+                for(let i = c.x + 20; i < c.x + c.w - 20; i+=40) {
+                    ctx.fillRect(i, c.h - 15, 10, 15);
+                }
+                ctx.fillStyle = 'var(--ceiling)'; // reset
+            });
+
+            // Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 20;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            // Draw Rope
+            if (player.state === 'shooting') {
+                ctx.strokeStyle = 'var(--rope)';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(player.x, player.y);
+                ctx.lineTo(hook.x, hook.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Hook tip
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(hook.x, hook.y, 4, 0, Math.PI*2); ctx.fill();
+            } else if (player.state === 'swinging') {
+                ctx.strokeStyle = 'var(--rope)';
+                ctx.lineWidth = 3;
+                // Glowing line effect
+                ctx.shadowColor = 'var(--rope)';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(player.x, player.y);
+                ctx.lineTo(anchor.x, anchor.y);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                
+                // Anchor point
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(anchor.x, anchor.y, 5, 0, Math.PI*2); ctx.fill();
+            }
+
+            // Draw Player
+            ctx.fillStyle = 'var(--player)';
+            ctx.shadowColor = 'var(--player)';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Inner eye
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            let vxNorm = player.state === 'swinging' ? Math.cos(player.angle) : (player.vx / 10);
+            let vyNorm = player.state === 'swinging' ? -Math.sin(player.angle) : (player.vy / 10);
+            ctx.arc(player.x + Math.max(-5, Math.min(5, vxNorm*5)), player.y + Math.max(-5, Math.min(5, vyNorm*5)), 4, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.restore();
+            
+            // Draw death zone warning at bottom
+            ctx.fillStyle = 'rgba(255, 51, 51, 0.2)';
+            ctx.fillRect(0, height - 20, width, 20);
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function die() {
+            isRunning = false;
+            // Explosion
+            ctx.save(); ctx.translate(-cameraX, 0);
+            ctx.fillStyle = 'var(--danger)';
+            ctx.beginPath(); ctx.arc(player.x, player.y, 50, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+            
+            setTimeout(() => {
+                document.getElementById('final-stats').textContent = `Distance: ${score}m`;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+            }, 300);
+        }
+
+        // Input
+        let tapZone = document.getElementById('tap-zone');
+        
+        tapZone.addEventListener('mousedown', e => { e.preventDefault(); shootGrapple(); });
+        tapZone.addEventListener('mouseup', e => { e.preventDefault(); releaseGrapple(); });
+        tapZone.addEventListener('touchstart', e => { e.preventDefault(); shootGrapple(); }, {passive:false});
+        tapZone.addEventListener('touchend', e => { e.preventDefault(); releaseGrapple(); });
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space') {
+                if(player.state === 'falling') shootGrapple();
+            }
+        });
+        window.addEventListener('keyup', e => {
+            if (e.code === 'Space') releaseGrapple();
+        });
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            score = 0; cameraX = 0; frameCount = 0;
+            player = { x: 100, y: 200, vx: 5, vy: 0, radius: 15, state: 'falling', angle: 0, aVelocity: 0, ropeLength: 0 };
+            hook.active = false;
+            particles = [];
+            
+            generateLevel();
+            
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

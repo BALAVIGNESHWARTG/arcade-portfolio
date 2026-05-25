@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Pool</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap');
+
+        :root {
+            --bg: #090a0f;
+            --table: #0f3460;
+            --border: #16213e;
+            --pocket: #000;
+            --cue: #fff;
+            --ball: #e94560;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: var(--bg); color: #fff;
+            font-family: 'Syncopate', sans-serif; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 500px;
+            background-color: var(--bg); display: flex; align-items: center; justify-content: center;
+        }
+
+        canvas { display: block; z-index: 5; box-shadow: 0 0 50px rgba(15, 52, 96, 0.8); border-radius: 10px; }
+
+        .hud {
+            position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between;
+            font-size: 20px; z-index: 10; pointer-events: none; text-shadow: 0 0 10px #00ffcc;
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(9, 10, 15, 0.9); border: 2px solid var(--ball); padding: 40px;
+            text-align: center; box-shadow: 0 0 30px rgba(233, 69, 96, 0.4); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 450px;
+        }
+        h1 { color: var(--ball); margin-top: 0; font-size: 40px; text-shadow: 0 0 20px var(--ball); margin-bottom: 10px; }
+        p { color: #aaa; line-height: 1.5; font-size: 14px; margin-bottom: 30px; }
+        button {
+            background: transparent; color: var(--ball); border: 2px solid var(--ball);
+            padding: 15px 40px; font-family: 'Syncopate', sans-serif; font-size: 18px; cursor: pointer; transition: 0.2s;
+            border-radius: 5px; box-shadow: 0 0 15px rgba(233, 69, 96, 0.2); text-transform: uppercase;
+        }
+        button:hover { background: var(--ball); color: #000; box-shadow: 0 0 30px var(--ball); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud">
+            <div id="scoreEl">BALLS: 15</div>
+            <div id="shotsEl">SHOTS: 0</div>
+        </div>
+
+        <div id="start-screen" class="modal">
+            <h1>NEON POOL</h1>
+            <p>Drag backwards from the cue ball to aim and shoot.<br>Clear all red balls in the fewest shots.</p>
+            <button id="start-btn">BREAK</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 id="result-title">CLEARED</h1>
+            <p id="final-stats">Total Shots: 0</p>
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width = 700;
+        let height = 350;
+        let scale = 1;
+        
+        function resize() {
+            let cw = container.clientWidth - 20;
+            let ch = container.clientHeight - 20;
+            
+            // Maintain 2:1 aspect ratio
+            if (cw / 2 < ch) {
+                width = cw; height = cw / 2;
+            } else {
+                height = ch; width = ch * 2;
+            }
+            canvas.width = width; canvas.height = height;
+            scale = width / 700; // base logic on 700x350
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let shots = 0;
+        
+        // Physics constants
+        const FRICTION = 0.985;
+        const BALL_RADIUS = 10;
+        const POCKET_RADIUS = 20;
+        const MIN_SPEED = 0.1;
+        
+        let balls = [];
+        let pockets = [];
+        
+        let dragStart = null;
+        let dragCurrent = null;
+        let isAiming = false;
+        
+        function initTable() {
+            // Setup pockets (scaled)
+            pockets = [
+                {x: 0, y: 0}, {x: 350, y: -5}, {x: 700, y: 0},
+                {x: 0, y: 350}, {x: 350, y: 355}, {x: 700, y: 350}
+            ];
+            
+            balls = [];
+            // Cue ball
+            balls.push({ id: 'cue', x: 150, y: 175, vx: 0, vy: 0, color: 'var(--cue)', active: true });
+            
+            // Triangle of red balls
+            let startX = 500;
+            let startY = 175;
+            let rows = 5;
+            for(let row=0; row<rows; row++) {
+                for(let col=0; col<=row; col++) {
+                    let x = startX + row * (BALL_RADIUS * 1.732); // sqrt(3)
+                    let y = startY - (row * BALL_RADIUS) + (col * BALL_RADIUS * 2);
+                    balls.push({ id: `red-${row}-${col}`, x: x, y: y, vx: 0, vy: 0, color: 'var(--ball)', active: true });
+                }
+            }
+        }
+
+        // Elastic collision between two circles
+        function resolveCollision(b1, b2) {
+            let dx = b2.x - b1.x;
+            let dy = b2.y - b1.y;
+            let distance = Math.hypot(dx, dy);
+
+            if (distance < BALL_RADIUS * 2) {
+                // Overlap resolution
+                let overlap = (BALL_RADIUS * 2) - distance;
+                let nx = dx / distance;
+                let ny = dy / distance;
+
+                b1.x -= nx * overlap / 2;
+                b1.y -= ny * overlap / 2;
+                b2.x += nx * overlap / 2;
+                b2.y += ny * overlap / 2;
+
+                // Momentum transfer
+                let kx = (b1.vx - b2.vx);
+                let ky = (b1.vy - b2.vy);
+                let p = 2.0 * (nx * kx + ny * ky) / 2; // mass is 1 for both
+
+                b1.vx -= p * nx;
+                b1.vy -= p * ny;
+                b2.vx += p * nx;
+                b2.vy += p * ny;
+            }
+        }
+
+        function update() {
+            let moving = false;
+            let activeReds = 0;
+
+            for(let i=0; i<balls.length; i++) {
+                let b = balls[i];
+                if (!b.active) continue;
+                
+                if (b.id !== 'cue') activeReds++;
+
+                // Friction
+                b.vx *= FRICTION;
+                b.vy *= FRICTION;
+                if (Math.abs(b.vx) < MIN_SPEED) b.vx = 0;
+                if (Math.abs(b.vy) < MIN_SPEED) b.vy = 0;
+                
+                if (b.vx !== 0 || b.vy !== 0) moving = true;
+
+                b.x += b.vx;
+                b.y += b.vy;
+
+                // Wall collisions (bounce)
+                if (b.x - BALL_RADIUS < 0) { b.x = BALL_RADIUS; b.vx *= -1; }
+                if (b.x + BALL_RADIUS > 700) { b.x = 700 - BALL_RADIUS; b.vx *= -1; }
+                if (b.y - BALL_RADIUS < 0) { b.y = BALL_RADIUS; b.vy *= -1; }
+                if (b.y + BALL_RADIUS > 350) { b.y = 350 - BALL_RADIUS; b.vy *= -1; }
+
+                // Pocket detection
+                for (let p of pockets) {
+                    if (Math.hypot(b.x - p.x, b.y - p.y) < POCKET_RADIUS) {
+                        b.active = false;
+                        if (b.id === 'cue') {
+                            // Scratch: reset cue ball
+                            b.x = 150; b.y = 175; b.vx = 0; b.vy = 0; b.active = true;
+                        }
+                    }
+                }
+            }
+
+            // Ball to ball collisions
+            for(let i=0; i<balls.length; i++) {
+                for(let j=i+1; j<balls.length; j++) {
+                    if (balls[i].active && balls[j].active) {
+                        resolveCollision(balls[i], balls[j]);
+                    }
+                }
+            }
+
+            document.getElementById('scoreEl').textContent = `BALLS: ${activeReds}`;
+            document.getElementById('shotsEl').textContent = `SHOTS: ${shots}`;
+
+            if (activeReds === 0 && !moving) {
+                winGame();
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            ctx.save();
+            ctx.scale(scale, scale);
+
+            // Table background
+            ctx.fillStyle = 'var(--table)';
+            ctx.fillRect(0, 0, 700, 350);
+
+            // Draw pockets
+            ctx.fillStyle = 'var(--pocket)';
+            pockets.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, POCKET_RADIUS, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Draw balls
+            balls.forEach(b => {
+                if (!b.active) return;
+                ctx.fillStyle = b.color;
+                ctx.shadowColor = b.color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, BALL_RADIUS, 0, Math.PI*2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // Highlight
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(b.x - 3, b.y - 3, BALL_RADIUS*0.3, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Aiming line
+            let cue = balls[0];
+            if (isAiming && dragCurrent && cue.active && cue.vx === 0 && cue.vy === 0) {
+                let dx = dragStart.x - dragCurrent.x;
+                let dy = dragStart.y - dragCurrent.y;
+                
+                // Power limit
+                let power = Math.min(Math.hypot(dx, dy) * 0.1, 20);
+                let angle = Math.atan2(dy, dx);
+                
+                let drawDx = Math.cos(angle) * power * 10;
+                let drawDy = Math.sin(angle) * power * 10;
+
+                ctx.strokeStyle = 'rgba(0, 255, 204, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(cue.x, cue.y);
+                ctx.lineTo(cue.x + drawDx, cue.y + drawDy);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Cue stick visual
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(cue.x - Math.cos(angle)*15, cue.y - Math.sin(angle)*15);
+                ctx.lineTo(cue.x - Math.cos(angle)*(15 + power*5), cue.y - Math.sin(angle)*(15 + power*5));
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function winGame() {
+            isRunning = false;
+            document.getElementById('final-stats').textContent = `Total Shots: ${shots}`;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        // Input
+        function getMousePos(e) {
+            let rect = canvas.getBoundingClientRect();
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left) / scale,
+                y: (clientY - rect.top) / scale
+            };
+        }
+
+        function onDown(e) {
+            e.preventDefault();
+            let cue = balls[0];
+            // Only aim if cue ball is stopped
+            if (cue.vx === 0 && cue.vy === 0) {
+                let pos = getMousePos(e);
+                dragStart = pos;
+                dragCurrent = pos;
+                isAiming = true;
+            }
+        }
+
+        function onMove(e) {
+            if (isAiming) {
+                e.preventDefault();
+                dragCurrent = getMousePos(e);
+            }
+        }
+
+        function onUp(e) {
+            if (isAiming) {
+                isAiming = false;
+                let cue = balls[0];
+                let dx = dragStart.x - dragCurrent.x;
+                let dy = dragStart.y - dragCurrent.y;
+                
+                let power = Math.hypot(dx, dy) * 0.1;
+                if (power > 1) { // minimum threshold to shoot
+                    let angle = Math.atan2(dy, dx);
+                    power = Math.min(power, 25); // max power
+                    
+                    cue.vx = Math.cos(angle) * power;
+                    cue.vy = Math.sin(angle) * power;
+                    shots++;
+                }
+            }
+        }
+
+        canvas.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        
+        canvas.addEventListener('touchstart', onDown, {passive:false});
+        window.addEventListener('touchmove', onMove, {passive:false});
+        window.addEventListener('touchend', onUp);
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            shots = 0;
+            initTable();
+            
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>
