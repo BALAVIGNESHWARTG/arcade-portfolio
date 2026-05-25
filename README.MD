@@ -36,7 +36,7 @@ Anchoring credibility with the classics.
 
 [x] Frogger (Completed)
 
-[ ] Missile Command
+[x] Missile Command (Completed)
 
 🚀 2. Shooters (Top-down / Side-scroll)
 
@@ -44,13 +44,13 @@ High replayability and canvas optimization.
 
 [x] Space Shooter (Completed)
 
-[ ] Alien Swarm
+[x] Alien Swarm (Completed)
 
-[ ] Bullet Hell Mini
+[x] Bullet Hell Mini (Completed)
 
-[ ] Laser Defender
+[x] Laser Defender (Completed)
 
-[ ] Twin Stick Shooter
+[x] Twin Stick Shooter (Completed)
 
 [ ] Boss Rush Shooter
 
