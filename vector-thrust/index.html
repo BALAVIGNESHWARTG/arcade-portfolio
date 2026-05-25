@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vector Thrust</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@700&display=swap');
+
+        :root {
+            --bg: #000b18;
+            --ship: #00ffcc;
+            --thrust: #f39c12;
+            --terrain: #ff0055;
+            --pad: #2ecc71;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #000; color: #fff;
+            font-family: 'Space Mono', monospace; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 600px;
+            background: linear-gradient(180deg, #000b18, #0a0a0a);
+            border: 2px solid var(--ship); box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+            overflow: hidden; border-radius: 5px;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between;
+            font-size: 16px; z-index: 10; pointer-events: none; text-shadow: 0 0 5px var(--ship);
+        }
+        .hud-left, .hud-right { display: flex; flex-direction: column; gap: 5px; }
+        .hud-right { text-align: right; }
+        
+        .alert { color: #e74c3c; font-weight: bold; animation: blink 0.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.2; } }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0, 11, 24, 0.95); border: 2px solid var(--ship); padding: 40px;
+            text-align: center; box-shadow: 0 0 30px rgba(0, 255, 204, 0.4); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 450px;
+        }
+        h1 { color: var(--ship); margin-top: 0; font-size: 32px; text-shadow: 0 0 15px var(--ship); margin-bottom: 20px; }
+        p { color: #ccc; line-height: 1.5; font-size: 14px; margin-bottom: 30px; }
+        button {
+            background: transparent; color: var(--ship); border: 2px solid var(--ship);
+            padding: 12px 30px; font-family: 'Space Mono', monospace; font-size: 18px; cursor: pointer; transition: 0.2s;
+            border-radius: 5px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.2); text-transform: uppercase;
+        }
+        button:hover { background: var(--ship); color: #000; box-shadow: 0 0 30px var(--ship); }
+        .hidden { display: none !important; }
+
+        #controls {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; z-index: 20;
+        }
+        .btn-dir {
+            width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3);
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+            background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6);
+        }
+        .btn-dir:active { background: rgba(255,255,255,0.3); }
+        .btn-thrust { width: 100px; border-radius: 10px; font-size: 24px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud">
+            <div class="hud-left">
+                <div id="fuelEl">FUEL: 100%</div>
+                <div id="scoreEl">SCORE: 0</div>
+            </div>
+            <div class="hud-right">
+                <div id="altEl">ALT: 100m</div>
+                <div id="vsEl">VS: -0.0 m/s</div>
+                <div id="hsEl">HS: 0.0 m/s</div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <div class="btn-dir" id="btn-left">◀</div>
+            <div class="btn-dir btn-thrust" id="btn-thrust">▲</div>
+            <div class="btn-dir" id="btn-right">▶</div>
+        </div>
+
+        <div id="start-screen" class="modal">
+            <h1>VECTOR THRUST</h1>
+            <p>Land gently on the Green Pads.<br>Keep Vertical Speed (VS) and Horizontal Speed (HS) low.<br>Ship must be level!</p>
+            <button id="start-btn">LAUNCH</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 id="result-title">CRASHED</h1>
+            <p id="final-stats">You hit the surface too hard.</p>
+            <button id="restart-btn">NEXT MISSION</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let score = 0;
+        let level = 1;
+
+        // Ship
+        let ship = {
+            x: 0, y: 0, vx: 0, vy: 0, angle: 0, fuel: 1000
+        };
+        const GRAVITY = 0.02;
+        const THRUST = 0.05;
+        const ROTATE_SPEED = 0.05;
+
+        // Terrain
+        let terrain = [];
+        let pad = { x: 0, y: 0, w: 60 };
+        
+        let particles = [];
+
+        function generateTerrain() {
+            terrain = [];
+            // Generate jagged landscape
+            let points = 20;
+            let spacing = width / points;
+            
+            // Random pad location (not too close to edges)
+            let padIndex = Math.floor(Math.random() * (points - 6)) + 3;
+            
+            let currentY = height - 100 - Math.random()*200;
+            
+            for(let i=0; i<=points; i++) {
+                if (i === padIndex) {
+                    // Create flat pad
+                    pad.x = i * spacing;
+                    pad.y = currentY;
+                    terrain.push({x: i * spacing, y: currentY});
+                    terrain.push({x: (i+2) * spacing, y: currentY}); // flat for 2 segments
+                    pad.w = spacing * 2;
+                    i++; // skip next point
+                } else {
+                    currentY += (Math.random() - 0.5) * 150;
+                    // Keep bounds
+                    if (currentY > height - 20) currentY = height - 20;
+                    if (currentY < height/2) currentY = height/2;
+                    terrain.push({x: i * spacing, y: currentY});
+                }
+            }
+        }
+
+        // Line intersection logic
+        function lineIntersect(x1,y1,x2,y2, x3,y3,x4,y4) {
+            let det = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+            if (det === 0) return false;
+            let t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / det;
+            let u = -((x1-x2)*(y1-y3) - (y1-y2)*(x1-x3)) / det;
+            return (t >= 0 && t <= 1 && u >= 0 && u <= 1);
+        }
+
+        function checkCollision() {
+            // Ship points (rough triangle)
+            let cos = Math.cos(ship.angle);
+            let sin = Math.sin(ship.angle);
+            
+            // Ship nose: (0, -10)
+            let nx = ship.x - 10 * sin;
+            let ny = ship.y - 10 * cos;
+            // Bottom left: (-8, 10)
+            let blx = ship.x - 8 * cos - 10 * sin;
+            let bly = ship.y - 8 * sin + 10 * cos;
+            // Bottom right: (8, 10)
+            let brx = ship.x + 8 * cos - 10 * sin;
+            let bry = ship.y + 8 * sin + 10 * cos;
+
+            let shipLines = [
+                {x1: nx, y1: ny, x2: blx, y2: bly},
+                {x1: blx, y1: bly, x2: brx, y2: bry}, // Bottom edge (landing gear)
+                {x1: brx, y1: bry, x2: nx, y2: ny}
+            ];
+
+            // Pad check first
+            let onPad = false;
+            let padLine = {x1: pad.x, y1: pad.y, x2: pad.x + pad.w, y2: pad.y};
+            
+            // If the bottom edge of the ship intersects the pad line
+            if (lineIntersect(shipLines[1].x1, shipLines[1].y1, shipLines[1].x2, shipLines[1].y2, padLine.x1, padLine.y1, padLine.x2, padLine.y2)) {
+                // Determine if landing was safe
+                let vs = ship.vy * 60; // scale up for UI display
+                let hs = Math.abs(ship.vx * 60);
+                // Angle must be upright (close to 0)
+                // Normalize angle
+                let a = ((ship.angle % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+                if (a > Math.PI) a -= Math.PI*2;
+                
+                if (vs < 80 && hs < 30 && Math.abs(a) < 0.2) {
+                    winMission();
+                    return;
+                } else {
+                    crash();
+                    return;
+                }
+            }
+
+            // Terrain check
+            for(let i=0; i<terrain.length-1; i++) {
+                let t1 = terrain[i]; let t2 = terrain[i+1];
+                for(let sl of shipLines) {
+                    if (lineIntersect(sl.x1, sl.y1, sl.x2, sl.y2, t1.x, t1.y, t2.x, t2.y)) {
+                        crash();
+                        return;
+                    }
+                }
+            }
+            
+            // Bounds check
+            if (ship.x < 0 || ship.x > width || ship.y < 0 || ship.y > height) crash();
+        }
+
+        function createExplosion(x, y) {
+            for(let i=0; i<30; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
+                    life: 40, color: i % 2 === 0 ? 'var(--thrust)' : 'var(--terrain)'
+                });
+            }
+        }
+
+        function update() {
+            // Physics
+            ship.vy += GRAVITY;
+
+            let thrusting = false;
+            if (ship.fuel > 0 && (keys['ArrowUp'] || keys['KeyW'] || btnThrust)) {
+                ship.vx += Math.sin(ship.angle) * THRUST;
+                ship.vy -= Math.cos(ship.angle) * THRUST;
+                ship.fuel -= 1;
+                thrusting = true;
+                
+                // Thrust particles
+                particles.push({
+                    x: ship.x - Math.sin(ship.angle)*12,
+                    y: ship.y + Math.cos(ship.angle)*12,
+                    vx: -Math.sin(ship.angle)*2 + (Math.random()-0.5)*1,
+                    vy: Math.cos(ship.angle)*2 + (Math.random()-0.5)*1,
+                    life: 15, color: 'var(--thrust)'
+                });
+            }
+
+            if (keys['ArrowLeft'] || keys['KeyA'] || btnLeft) ship.angle -= ROTATE_SPEED;
+            if (keys['ArrowRight'] || keys['KeyD'] || btnRight) ship.angle += ROTATE_SPEED;
+
+            ship.x += ship.vx;
+            ship.y += ship.vy;
+
+            checkCollision();
+
+            // Particles
+            for(let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            // Update UI
+            let fuelPct = Math.max(0, Math.floor((ship.fuel / 1000) * 100));
+            document.getElementById('fuelEl').textContent = `FUEL: ${fuelPct}%`;
+            if (fuelPct < 20) document.getElementById('fuelEl').classList.add('alert');
+            else document.getElementById('fuelEl').classList.remove('alert');
+            
+            // Altitude relative to pad
+            let alt = pad.y - ship.y;
+            document.getElementById('altEl').textContent = `ALT: ${Math.floor(alt)}m`;
+            
+            let vs = ship.vy * 60; // display speed
+            let vsEl = document.getElementById('vsEl');
+            vsEl.textContent = `VS: ${vs.toFixed(1)} m/s`;
+            if (vs > 80) vsEl.classList.add('alert'); else vsEl.classList.remove('alert');
+            
+            let hs = ship.vx * 60;
+            let hsEl = document.getElementById('hsEl');
+            hsEl.textContent = `HS: ${Math.abs(hs).toFixed(1)} m/s`;
+            if (Math.abs(hs) > 30) hsEl.classList.add('alert'); else hsEl.classList.remove('alert');
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw Terrain
+            ctx.strokeStyle = 'var(--terrain)';
+            ctx.lineWidth = 2;
+            ctx.shadowColor = 'var(--terrain)';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.moveTo(terrain[0].x, terrain[0].y);
+            for(let i=1; i<terrain.length; i++) {
+                ctx.lineTo(terrain[i].x, terrain[i].y);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            
+            // Fill under terrain slightly
+            ctx.lineTo(width, height); ctx.lineTo(0, height);
+            ctx.fillStyle = 'rgba(255, 0, 85, 0.1)';
+            ctx.fill();
+
+            // Draw Pad
+            ctx.strokeStyle = 'var(--pad)';
+            ctx.lineWidth = 6;
+            ctx.shadowColor = 'var(--pad)';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(pad.x, pad.y);
+            ctx.lineTo(pad.x + pad.w, pad.y);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Draw Ship
+            if (isRunning) { // only draw if alive
+                ctx.save();
+                ctx.translate(ship.x, ship.y);
+                ctx.rotate(ship.angle);
+                
+                ctx.strokeStyle = 'var(--ship)';
+                ctx.lineWidth = 2;
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.moveTo(0, -12); // nose
+                ctx.lineTo(-8, 10);
+                ctx.lineTo(8, 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                // Legs
+                ctx.beginPath(); ctx.moveTo(-8, 10); ctx.lineTo(-12, 16); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(8, 10); ctx.lineTo(12, 16); ctx.stroke();
+                
+                ctx.restore();
+            }
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 20; // scale alpha
+                ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function loop() {
+            if(!isRunning && particles.length === 0) return; // Keep updating for particles if crashed
+            if (isRunning) update();
+            else {
+                // If crashed, just update particles
+                for(let i = particles.length - 1; i >= 0; i--) {
+                    let p = particles[i];
+                    p.x += p.vx; p.y += p.vy; p.life--;
+                    if (p.life <= 0) particles.splice(i, 1);
+                }
+            }
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function crash() {
+            isRunning = false;
+            createExplosion(ship.x, ship.y);
+            
+            setTimeout(() => {
+                document.getElementById('result-title').textContent = 'CRASHED';
+                document.getElementById('result-title').style.color = '#e74c3c';
+                document.getElementById('final-stats').textContent = `Hull integrity compromised.`;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+            }, 1000);
+        }
+
+        function winMission() {
+            isRunning = false;
+            score += 100 * level;
+            document.getElementById('scoreEl').textContent = `SCORE: ${score}`;
+            
+            setTimeout(() => {
+                document.getElementById('result-title').textContent = 'PERFECT LANDING';
+                document.getElementById('result-title').style.color = 'var(--pad)';
+                document.getElementById('final-stats').textContent = `Mission ${level} successful.`;
+                document.getElementById('restart-btn').textContent = "NEXT LEVEL";
+                document.getElementById('game-over-screen').classList.remove('hidden');
+                level++;
+            }, 1000);
+        }
+
+        // Input Handling
+        let keys = {};
+        window.addEventListener('keydown', e => { keys[e.code] = true; });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+        
+        let btnLeft=false, btnRight=false, btnThrust=false;
+        const bindBtn = (id, setter) => {
+            let el = document.getElementById(id);
+            el.addEventListener('mousedown', e => { e.preventDefault(); setter(true); });
+            el.addEventListener('mouseup', e => { e.preventDefault(); setter(false); });
+            el.addEventListener('mouseleave', e => { e.preventDefault(); setter(false); });
+            el.addEventListener('touchstart', e => { e.preventDefault(); setter(true); }, {passive:false});
+            el.addEventListener('touchend', e => { e.preventDefault(); setter(false); });
+        };
+
+        bindBtn('btn-left', val => btnLeft = val);
+        bindBtn('btn-right', val => btnRight = val);
+        bindBtn('btn-thrust', val => btnThrust = val);
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            if (document.getElementById('result-title').textContent === 'CRASHED') {
+                score = 0; level = 1; document.getElementById('scoreEl').textContent = `SCORE: 0`;
+            }
+
+            generateTerrain();
+            
+            ship = { x: 100, y: 100, vx: 2, vy: 0, angle: Math.PI/2, fuel: 1000 };
+            particles = [];
+            
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

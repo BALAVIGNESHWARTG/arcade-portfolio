@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Ninja</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Audiowide&display=swap');
+
+        :root {
+            --bg: #0d0d1a;
+            --blade: #00ffff;
+            --bomb: #ff0033;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: var(--bg); color: #fff;
+            font-family: 'Audiowide', cursive; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+            cursor: crosshair;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 600px;
+            background: radial-gradient(circle, #1a1a33 0%, var(--bg) 100%);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.2); border: 2px solid var(--blade);
+            overflow: hidden; border-radius: 5px;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between;
+            font-size: 28px; z-index: 10; pointer-events: none; text-shadow: 0 0 10px var(--blade); color: var(--blade);
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(13, 13, 26, 0.9); border: 2px solid var(--blade); padding: 40px;
+            text-align: center; box-shadow: 0 0 30px var(--blade); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 450px;
+        }
+        h1 { color: var(--blade); margin-top: 0; font-size: 40px; text-shadow: 0 0 15px var(--blade); margin-bottom: 20px; }
+        p { color: #aaa; line-height: 1.5; font-size: 16px; margin-bottom: 30px; }
+        button {
+            background: transparent; color: var(--blade); border: 2px solid var(--blade);
+            padding: 15px 40px; font-family: 'Audiowide', cursive; font-size: 20px; cursor: pointer; transition: 0.2s;
+            border-radius: 5px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); text-transform: uppercase;
+        }
+        button:hover { background: var(--blade); color: #000; box-shadow: 0 0 30px var(--blade); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud">
+            <div id="scoreEl">SCORE: 0</div>
+            <div id="livesEl">LIVES: 3</div>
+        </div>
+
+        <div id="start-screen" class="modal">
+            <h1>CYBER NINJA</h1>
+            <p>Drag or swipe to slice polygons.<br>Don't let them fall off screen.<br>AVOID RED BOMBS!</p>
+            <button id="start-btn">ENGAGE</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 style="color:var(--bomb); text-shadow: 0 0 15px var(--bomb);">SYSTEM FAILURE</h1>
+            <p id="final-stats">Score: 0</p>
+            <button id="restart-btn" style="border-color:var(--bomb); color:var(--bomb);">REBOOT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let score = 0;
+        let lives = 3;
+        let frame = 0;
+
+        const GRAVITY = 0.2;
+        
+        let objects = []; // Active polygons
+        let particles = [];
+        let trail = []; // mouse/touch trail
+        
+        const COLORS = ['#00ffcc', '#ff00ff', '#e9b64a', '#3498db'];
+
+        function spawnObject() {
+            let isBomb = Math.random() < 0.15;
+            let size = isBomb ? 25 : 30 + Math.random() * 20;
+            
+            let obj = {
+                x: width/4 + Math.random() * (width/2),
+                y: height + 50,
+                vx: (Math.random() - 0.5) * 6,
+                vy: -12 - Math.random() * 6,
+                rotation: 0,
+                vr: (Math.random() - 0.5) * 0.2,
+                size: size,
+                isBomb: isBomb,
+                color: isBomb ? 'var(--bomb)' : COLORS[Math.floor(Math.random() * COLORS.length)],
+                points: [],
+                sliced: false,
+                halves: []
+            };
+
+            // Generate polygon shape
+            let sides = isBomb ? 10 : Math.floor(Math.random() * 4) + 3; // 3 to 6 sides
+            for(let i=0; i<sides; i++) {
+                let angle = (i * 2 * Math.PI) / sides;
+                obj.points.push({ x: Math.cos(angle)*size, y: Math.sin(angle)*size });
+            }
+            
+            objects.push(obj);
+        }
+
+        // Check if two line segments intersect
+        function lineIntersect(x1,y1,x2,y2, x3,y3,x4,y4) {
+            let det = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+            if (det === 0) return null;
+            let t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / det;
+            let u = -((x1-x2)*(y1-y3) - (y1-y2)*(x1-x3)) / det;
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                return { x: x1 + t*(x2-x1), y: y1 + t*(y2-y1) };
+            }
+            return null;
+        }
+
+        function sliceObject(obj, lineX1, lineY1, lineX2, lineY2) {
+            if (obj.sliced) return;
+
+            // Transform slice line to object's local space
+            let cos = Math.cos(-obj.rotation);
+            let sin = Math.sin(-obj.rotation);
+            
+            let lx1 = lineX1 - obj.x; let ly1 = lineY1 - obj.y;
+            let lx2 = lineX2 - obj.x; let ly2 = lineY2 - obj.y;
+            
+            let localX1 = lx1 * cos - ly1 * sin;
+            let localY1 = lx1 * sin + ly1 * cos;
+            let localX2 = lx2 * cos - ly2 * sin;
+            let localY2 = lx2 * sin + ly2 * cos;
+
+            let intersections = [];
+            let p = obj.points;
+            let n = p.length;
+            
+            for(let i=0; i<n; i++) {
+                let j = (i+1)%n;
+                let pt = lineIntersect(localX1, localY1, localX2, localY2, p[i].x, p[i].y, p[j].x, p[j].y);
+                if (pt) {
+                    intersections.push({ pt, index: i });
+                }
+            }
+
+            if (intersections.length >= 2) {
+                // Successful slice
+                obj.sliced = true;
+                
+                if (obj.isBomb) {
+                    // Explosion
+                    for(let i=0; i<30; i++) {
+                        particles.push({
+                            x: obj.x, y: obj.y,
+                            vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15,
+                            life: 30, color: 'var(--bomb)'
+                        });
+                    }
+                    loseGame();
+                    return;
+                }
+
+                score += 10;
+                document.getElementById('scoreEl').textContent = `SCORE: ${score}`;
+                
+                // Create sparks
+                for(let i=0; i<15; i++) {
+                    particles.push({
+                        x: obj.x, y: obj.y,
+                        vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
+                        life: 20, color: obj.color
+                    });
+                }
+                
+                // For visual simplicity in 2D canvas, we will just make the halves by shrinking the original 
+                // and pushing them apart rather than doing exact polygon splitting math.
+                obj.halves = [
+                    { x: obj.x, y: obj.y, vx: obj.vx - 2, vy: obj.vy, rotation: obj.rotation, vr: obj.vr - 0.1 },
+                    { x: obj.x, y: obj.y, vx: obj.vx + 2, vy: obj.vy, rotation: obj.rotation, vr: obj.vr + 0.1 }
+                ];
+            }
+        }
+
+        function update() {
+            frame++;
+            
+            // Spawn logic
+            let spawnRate = Math.max(20, 80 - Math.floor(frame / 60));
+            if (frame % spawnRate === 0) spawnObject();
+
+            // Update trail
+            for(let i=0; i<trail.length; i++) {
+                trail[i].life--;
+            }
+            trail = trail.filter(t => t.life > 0);
+
+            // Update objects
+            for(let i=objects.length-1; i>=0; i--) {
+                let obj = objects[i];
+                
+                if (!obj.sliced) {
+                    obj.vy += GRAVITY;
+                    obj.x += obj.vx;
+                    obj.y += obj.vy;
+                    obj.rotation += obj.vr;
+
+                    // Missed an object
+                    if (obj.y > height + 100 && obj.vy > 0) {
+                        if (!obj.isBomb) {
+                            lives--;
+                            document.getElementById('livesEl').textContent = `LIVES: ${lives}`;
+                            if (lives <= 0) loseGame();
+                        }
+                        objects.splice(i, 1);
+                        continue;
+                    }
+
+                    // Check slicing from trail
+                    if (trail.length >= 2) {
+                        let t1 = trail[trail.length-1];
+                        let t2 = trail[trail.length-2];
+                        // Rough bounding box check first
+                        if (obj.x > Math.min(t1.x, t2.x) - obj.size && obj.x < Math.max(t1.x, t2.x) + obj.size &&
+                            obj.y > Math.min(t1.y, t2.y) - obj.size && obj.y < Math.max(t1.y, t2.y) + obj.size) {
+                            sliceObject(obj, t1.x, t1.y, t2.x, t2.y);
+                        }
+                    }
+                } else {
+                    // Update halves
+                    for(let h of obj.halves) {
+                        h.vy += GRAVITY;
+                        h.x += h.vx;
+                        h.y += h.vy;
+                        h.rotation += h.vr;
+                    }
+                    if (obj.halves[0].y > height + 100) {
+                        objects.splice(i, 1);
+                    }
+                }
+            }
+
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.life--;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function drawPolygon(obj, ctx) {
+            ctx.beginPath();
+            let p = obj.points;
+            for(let i=0; i<p.length; i++) {
+                if (i===0) ctx.moveTo(p[i].x, p[i].y);
+                else ctx.lineTo(p[i].x, p[i].y);
+            }
+            ctx.closePath();
+            ctx.fillStyle = obj.color;
+            ctx.shadowColor = obj.color;
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Bomb detail
+            if (obj.isBomb) {
+                ctx.fillStyle = '#111';
+                ctx.beginPath(); ctx.arc(0, 0, obj.size*0.4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.fillText("X", -4, 4);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw objects
+            objects.forEach(obj => {
+                if (!obj.sliced) {
+                    ctx.save();
+                    ctx.translate(obj.x, obj.y);
+                    ctx.rotate(obj.rotation);
+                    drawPolygon(obj, ctx);
+                    ctx.restore();
+                } else if (!obj.isBomb) {
+                    // Draw halves
+                    obj.halves.forEach(h => {
+                        ctx.save();
+                        ctx.translate(h.x, h.y);
+                        ctx.rotate(h.rotation);
+                        // Just draw the same polygon but scaled down on X to simulate a slice half
+                        ctx.scale(0.5, 1);
+                        drawPolygon(obj, ctx);
+                        ctx.restore();
+                    });
+                }
+            });
+
+            // Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 20;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            // Trail
+            if (trail.length > 1) {
+                ctx.strokeStyle = 'var(--blade)';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.shadowColor = 'var(--blade)';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(trail[0].x, trail[0].y);
+                for(let i=1; i<trail.length; i++) {
+                    ctx.lineTo(trail[i].x, trail[i].y);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function loseGame() {
+            isRunning = false;
+            ctx.fillStyle = 'rgba(255, 0, 51, 0.3)';
+            ctx.fillRect(0, 0, width, height);
+            
+            setTimeout(() => {
+                document.getElementById('final-stats').textContent = `Score: ${score}`;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+            }, 500);
+        }
+
+        // Input
+        let isDown = false;
+        
+        function getPos(e) {
+            let rect = canvas.getBoundingClientRect();
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function down(e) {
+            e.preventDefault();
+            isDown = true;
+            trail = [];
+            let p = getPos(e);
+            trail.push({x: p.x, y: p.y, life: 10});
+        }
+        
+        function move(e) {
+            if(!isDown) return;
+            e.preventDefault();
+            let p = getPos(e);
+            trail.push({x: p.x, y: p.y, life: 10});
+        }
+        
+        function up(e) {
+            isDown = false;
+        }
+
+        canvas.addEventListener('mousedown', down);
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', up);
+        
+        canvas.addEventListener('touchstart', down, {passive:false});
+        window.addEventListener('touchmove', move, {passive:false});
+        window.addEventListener('touchend', up);
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            score = 0; lives = 3; frame = 0;
+            document.getElementById('scoreEl').textContent = `SCORE: 0`;
+            document.getElementById('livesEl').textContent = `LIVES: 3`;
+            
+            objects = []; particles = []; trail = [];
+            
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

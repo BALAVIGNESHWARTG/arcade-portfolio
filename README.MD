@@ -78,7 +78,7 @@ Algorithmic thinking and state management.
 
 [ ] Logic Grid Solver
 
-[ ] Color Match
+[x] Color Switch (Completed)
 
 [ ] Laser Mirror Puzzle
 
@@ -96,7 +96,7 @@ Touch events and precision timing.
 
 [ ] Dodge the Blocks
 
-[ ] Falling Objects
+[x] Cyber Ninja (Completed)
 
 [ ] Rhythm Tap
 
@@ -120,7 +120,7 @@ Gravity, velocity, and collision detection.
 
 [ ] Ladder Climb
 
-[ ] Ice Physics Run
+[x] Vector Thrust (Completed)
 
 [ ] Trap Dash
 
@@ -152,7 +152,7 @@ Entity management and score scaling.
 
 [ ] Dungeon Escape
 
-[ ] Tower Defense Lite
+[x] Neon Defense (Completed)
 
 [ ] Horde Mode
 
@@ -198,7 +198,7 @@ Creative coding and unusual mechanics.
 
 [ ] Shadow vs Light
 
-[ ] Minimalist Chess
+[x] Neon Pinball (Completed)
 
 [ ] AI vs Player Snake
 
