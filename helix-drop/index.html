@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Helix Drop</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@900&display=swap');
+
+        :root {
+            --bg1: #ff9ff3;
+            --bg2: #feca57;
+            --pillar: #c8d6e5;
+            --platform: #1dd1a1;
+            --danger: #ff6b6b;
+            --ball: #54a0ff;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background: linear-gradient(135deg, var(--bg1), var(--bg2));
+            font-family: 'Montserrat', sans-serif; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 500px; max-height: 800px;
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.2); border-radius: 20px; overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.4);
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 30px; left: 0; width: 100%; text-align: center;
+            font-size: 50px; z-index: 10; pointer-events: none; color: #fff;
+            text-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #fff; padding: 40px; text-align: center; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 30;
+            border-radius: 20px; pointer-events: auto; width: 85%; max-width: 350px;
+        }
+        h1 { margin-top: 0; font-size: 40px; color: #333; margin-bottom: 10px; }
+        p { font-size: 18px; color: #666; margin-bottom: 30px; line-height: 1.5; }
+        button {
+            background: var(--ball); color: #fff; border: none; font-weight: 900;
+            padding: 15px 40px; font-family: 'Montserrat', sans-serif; font-size: 20px;
+            cursor: pointer; border-radius: 30px; box-shadow: 0 5px 15px rgba(84, 160, 255, 0.4);
+            transition: 0.2s; text-transform: uppercase; letter-spacing: 2px;
+        }
+        button:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(84, 160, 255, 0.6); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud" id="scoreEl">0</div>
+
+        <div id="start-screen" class="modal">
+            <h1>Helix Drop</h1>
+            <p>Swipe or drag left/right to rotate the tower.<br>Fall through the gaps.<br>Avoid the red tiles!</p>
+            <button id="start-btn">DROP</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 style="color: var(--danger);">SPLAT!</h1>
+            <p id="final-stats">Score: 0</p>
+            <button id="restart-btn">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let score = 0;
+        let combo = 0; // Tracks consecutive platform drops without bouncing
+        
+        // Physics constants
+        const GRAVITY = 0.5;
+        const BOUNCE = -9;
+        const CYLINDER_RADIUS = 120;
+        const CYLINDER_X = width / 2; // will be updated in resize but roughly center
+        
+        let towerRotation = 0;
+        let cameraY = 0;
+        let targetCameraY = 0;
+
+        let ball = {
+            y: 0, vy: 0, radius: 10,
+            xOffset: 0, zOffset: CYLINDER_RADIUS + 15 // Sticks out of the cylinder
+        };
+
+        let platforms = [];
+        let particles = [];
+        let splats = []; // Paint splatters left on platforms
+        
+        let touchX = 0;
+        let isDragging = false;
+
+        function generateLevel() {
+            platforms = [];
+            let startY = 300;
+            
+            // Generate 100 platforms down
+            for(let i=0; i<100; i++) {
+                let y = startY + (i * 200); // 200px vertical gap
+                
+                let segments = [];
+                // Divide circle into 12 segments (30 degrees each)
+                let numGaps = 2 + Math.floor(Math.random() * 2); // 2 or 3 gaps
+                let gapIndices = [];
+                while(gapIndices.length < numGaps) {
+                    let r = Math.floor(Math.random() * 12);
+                    if (!gapIndices.includes(r)) gapIndices.push(r);
+                }
+                
+                // 1 or 2 danger zones
+                let dangerIndices = [];
+                if (i > 1) { // No danger on first few platforms
+                    let numDanger = 1 + Math.floor(Math.random() * 2);
+                    while(dangerIndices.length < numDanger) {
+                        let r = Math.floor(Math.random() * 12);
+                        if (!gapIndices.includes(r) && !dangerIndices.includes(r)) dangerIndices.push(r);
+                    }
+                }
+
+                for(let s=0; s<12; s++) {
+                    if (gapIndices.includes(s)) continue; // Gap
+                    
+                    let type = 'safe';
+                    if (dangerIndices.includes(s)) type = 'danger';
+                    
+                    // A segment spans from (s*30) to ((s+1)*30) degrees
+                    segments.push({
+                        startAngle: s * (Math.PI*2/12),
+                        endAngle: (s+1) * (Math.PI*2/12),
+                        type: type
+                    });
+                }
+
+                platforms.push({
+                    y: y,
+                    segments: segments,
+                    broken: false
+                });
+            }
+        }
+
+        function createSplat(y, rot) {
+            splats.push({ y, rot, size: 20 + Math.random()*15, life: 300 });
+        }
+
+        function createBreakParticles(y) {
+            for(let i=0; i<30; i++) {
+                particles.push({
+                    x: width/2 + (Math.random()-0.5)*CYLINDER_RADIUS*2,
+                    y: y - cameraY,
+                    vx: (Math.random()-0.5)*15,
+                    vy: (Math.random()-0.5)*15 - 5,
+                    life: 40, color: 'var(--platform)'
+                });
+            }
+        }
+
+        function breakPlatform(index) {
+            platforms[index].broken = true;
+            createBreakParticles(platforms[index].y);
+            score += 10 + (combo * 5); // Combo bonus
+            document.getElementById('scoreEl').textContent = score;
+        }
+
+        function update() {
+            // Ball physics
+            ball.vy += GRAVITY;
+            ball.y += ball.vy;
+            
+            // Camera follow
+            targetCameraY = ball.y - height * 0.3; // keep ball at 30% from top
+            cameraY += (targetCameraY - cameraY) * 0.1; // Smooth follow
+
+            // Collision detection
+            let ballY = ball.y;
+            let ballAngle = (-towerRotation + Math.PI*2.5) % (Math.PI*2); // normalize angle relative to tower
+            if (ballAngle < 0) ballAngle += Math.PI*2;
+
+            for (let i=0; i<platforms.length; i++) {
+                let p = platforms[i];
+                if (p.broken) continue;
+
+                // If ball is crossing the platform Y level downwards
+                if (ball.vy > 0 && ballY + ball.radius > p.y - 10 && ballY - ball.radius < p.y + 10) {
+                    
+                    // Check if ball is over a segment
+                    let hitSegment = null;
+                    for (let s of p.segments) {
+                        // Normalize angles for checking
+                        let start = s.startAngle; let end = s.endAngle;
+                        // Handle wrap around
+                        if (ballAngle >= start && ballAngle <= end) {
+                            hitSegment = s; break;
+                        }
+                    }
+
+                    if (hitSegment) {
+                        if (hitSegment.type === 'danger' && combo < 3) {
+                            die();
+                            return;
+                        } else if (combo >= 3) {
+                            // Smash through! (Smash mode active)
+                            breakPlatform(i);
+                        } else {
+                            // Normal bounce
+                            ball.y = p.y - ball.radius - 10; // pop above
+                            ball.vy = BOUNCE;
+                            combo = 0; // reset combo on bounce
+                            createSplat(p.y, -towerRotation);
+                        }
+                    } else {
+                        // Gap! Increase combo if we pass fully through without bouncing
+                        // Wait to increase combo until we are fully past it
+                    }
+                }
+                
+                // Score/combo logic: if ball passed the platform
+                if (!p.broken && p.y < ballY - 20) {
+                    // Check if it hasn't been scored yet
+                    if (!p.scored) {
+                        p.scored = true;
+                        combo++;
+                        score++;
+                        document.getElementById('scoreEl').textContent = score;
+                        // Color change based on combo?
+                    }
+                }
+            }
+
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.vy += 0.5; p.life--;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        // Helper to draw an arc in pseudo-3D
+        function drawArc3D(ctx, cx, cy, radius, startAngle, endAngle, thickness, color, isFront) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            
+            // We scale Y by 0.3 to create depth (isometric-ish view)
+            let scaleY = 0.3;
+
+            // To sort front vs back, we just draw the back halves first, front halves later.
+            // But this function just draws the geometric shape.
+            
+            for(let a = startAngle; a <= endAngle; a += 0.05) {
+                let x = cx + Math.cos(a) * radius;
+                let y = cy + Math.sin(a) * radius * scaleY;
+                if (a === startAngle) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            
+            // Outer edge down (thickness)
+            for(let a = endAngle; a >= startAngle; a -= 0.05) {
+                let x = cx + Math.cos(a) * radius;
+                let y = cy + Math.sin(a) * radius * scaleY + thickness;
+                ctx.lineTo(x, y);
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+
+            // Outline
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            let cx = width / 2;
+            let scaleY = 0.3; // matches the perspective scaling
+
+            // Draw Central Pillar
+            ctx.fillStyle = 'var(--pillar)';
+            ctx.fillRect(cx - 30, 0, 60, height);
+            
+            // Add shading to pillar
+            let grad = ctx.createLinearGradient(cx - 30, 0, cx + 30, 0);
+            grad.addColorStop(0, 'rgba(0,0,0,0.2)');
+            grad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+            grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(cx - 30, 0, 60, height);
+
+            // Draw Platforms (Sorted by Y to draw from top to bottom)
+            // But we actually need to draw back halves, then pillar, then front halves.
+            // To simplify, we just draw the full platforms, but they overlay the pillar correctly.
+            // Wait, front halves must cover ball? No, ball is always in "front".
+            
+            platforms.forEach(p => {
+                if (p.broken) return;
+                
+                let screenY = p.y - cameraY;
+                if (screenY < -100 || screenY > height + 100) return; // Cull offscreen
+                
+                // Draw all segments of this platform
+                p.segments.forEach(s => {
+                    let actualStart = s.startAngle + towerRotation;
+                    let actualEnd = s.endAngle + towerRotation;
+                    
+                    let color = s.type === 'danger' ? 'var(--danger)' : 'var(--platform)';
+                    
+                    // We draw it. Due to pseudo 3D, we can just draw the arc. 
+                    drawArc3D(ctx, cx, screenY, CYLINDER_RADIUS, actualStart, actualEnd, 15, color, true);
+                    
+                    // Top face of segment (lighter color)
+                    ctx.fillStyle = s.type === 'danger' ? '#ff7f50' : '#2ecc71';
+                    ctx.beginPath();
+                    for(let a = actualStart; a <= actualEnd; a += 0.05) {
+                        let x = cx + Math.cos(a) * CYLINDER_RADIUS;
+                        let y = screenY + Math.sin(a) * CYLINDER_RADIUS * scaleY;
+                        if (a === actualStart) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    // Inner radius
+                    for(let a = actualEnd; a >= actualStart; a -= 0.05) {
+                        let x = cx + Math.cos(a) * 30; // pillar radius is 30
+                        let y = screenY + Math.sin(a) * 30 * scaleY;
+                        ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                });
+            });
+
+            // Splats (simplified)
+            ctx.fillStyle = 'var(--ball)';
+            splats.forEach(s => {
+                let screenY = s.y - cameraY;
+                if (screenY > 0 && screenY < height) {
+                    // Draw small ellipse
+                    ctx.beginPath();
+                    ctx.ellipse(cx, screenY - 5, s.size, s.size * scaleY, 0, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            });
+
+            // Draw Ball
+            let ballScreenY = ball.y - cameraY;
+            
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(cx, ballScreenY + 15 + Math.max(0, ball.vy*2), ball.radius, ball.radius*scaleY, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // Fire aura if combo >= 3
+            if (combo >= 3) {
+                ctx.fillStyle = 'rgba(255, 165, 0, 0.5)';
+                ctx.beginPath();
+                ctx.arc(cx, ballScreenY, ball.radius + 5 + Math.random()*5, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // The ball itself
+            ctx.fillStyle = 'var(--ball)';
+            ctx.beginPath();
+            ctx.arc(cx, ballScreenY, ball.radius, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Highlight
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(cx - 3, ballScreenY - 3, ball.radius*0.3, 0, Math.PI*2);
+            ctx.fill();
+
+            // Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 40;
+                ctx.fillRect(p.x, p.y, 8, 8);
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function die() {
+            isRunning = false;
+            // Draw death state
+            let cx = width/2;
+            let ballScreenY = ball.y - cameraY;
+            ctx.fillStyle = 'var(--danger)';
+            for(let i=0; i<15; i++) {
+                ctx.beginPath();
+                ctx.arc(cx + (Math.random()-0.5)*40, ballScreenY + (Math.random()-0.5)*40, Math.random()*10, 0, Math.PI*2);
+                ctx.fill();
+            }
+            
+            setTimeout(() => {
+                document.getElementById('final-stats').textContent = `Score: ${score}`;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+            }, 500);
+        }
+
+        // Input Handling
+        function handleInputStart(x) {
+            touchX = x;
+            isDragging = true;
+        }
+        function handleInputMove(x) {
+            if (isDragging) {
+                let dx = x - touchX;
+                // Sensitivty mapping
+                towerRotation += dx * 0.01;
+                touchX = x;
+            }
+        }
+        function handleInputEnd() {
+            isDragging = false;
+        }
+
+        // Mouse
+        container.addEventListener('mousedown', e => handleInputStart(e.clientX));
+        window.addEventListener('mousemove', e => handleInputMove(e.clientX));
+        window.addEventListener('mouseup', handleInputEnd);
+
+        // Touch
+        container.addEventListener('touchstart', e => { e.preventDefault(); handleInputStart(e.touches[0].clientX); }, {passive:false});
+        window.addEventListener('touchmove', e => { e.preventDefault(); handleInputMove(e.touches[0].clientX); }, {passive:false});
+        window.addEventListener('touchend', handleInputEnd);
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            score = 0; combo = 0;
+            document.getElementById('scoreEl').textContent = '0';
+            
+            ball = { y: 150, vy: 0, radius: 10, xOffset: 0 };
+            towerRotation = 0; cameraY = 0; targetCameraY = 0;
+            splats = []; particles = [];
+            
+            generateLevel();
+            
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

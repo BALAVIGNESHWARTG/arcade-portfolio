@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lumberjack Chop</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --bg: #74b9ff;
+            --tree: #8b4513;
+            --branch: #27ae60;
+            --player: #e74c3c;
+            --time-bar: #e17055;
+            --text: #2d3436;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #000; color: var(--text);
+            font-family: 'VT323', monospace; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 500px; max-height: 800px;
+            background-color: var(--bg);
+            border: 4px solid #fff; border-radius: 10px; overflow: hidden;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 20px; left: 0; width: 100%; text-align: center;
+            font-size: 60px; z-index: 10; pointer-events: none; color: #fff;
+            text-shadow: 3px 3px 0 #000;
+        }
+
+        /* Time Bar */
+        #time-container {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            width: 200px; height: 20px; background: rgba(0,0,0,0.5); border: 2px solid #fff;
+            z-index: 10; pointer-events: none;
+        }
+        #time-bar {
+            width: 50%; height: 100%; background: var(--time-bar); transition: width 0.1s linear;
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9); border: 4px solid #000; padding: 30px;
+            text-align: center; box-shadow: 10px 10px 0 rgba(0,0,0,0.3); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 400px;
+        }
+        h1 { margin-top: 0; font-size: 50px; line-height: 1; color: var(--text); margin-bottom: 10px; }
+        p { font-size: 24px; margin-bottom: 30px; line-height: 1.2; }
+        button {
+            background: var(--player); color: #fff; border: 4px solid #000;
+            padding: 10px 30px; font-family: 'VT323', monospace; font-size: 30px;
+            cursor: pointer; box-shadow: 5px 5px 0 #000; transition: 0.1s;
+        }
+        button:hover { transform: translate(2px, 2px); box-shadow: 3px 3px 0 #000; }
+        button:active { transform: translate(5px, 5px); box-shadow: 0 0 0 #000; }
+        .hidden { display: none !important; }
+
+        /* Tap Zones */
+        #zones {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; z-index: 20;
+        }
+        .zone { flex: 1; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud" id="scoreEl">0</div>
+        <div id="time-container"><div id="time-bar"></div></div>
+        
+        <div id="zones">
+            <div class="zone" id="zone-left"></div>
+            <div class="zone" id="zone-right"></div>
+        </div>
+
+        <div id="start-screen" class="modal">
+            <h1>TIMBER!</h1>
+            <p>Tap Left or Right to chop.<br>Avoid branches.<br>Chop fast to keep time up!</p>
+            <button id="start-btn">CHOP</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 style="color:var(--player);">SQUASHED</h1>
+            <p id="final-stats">Score: 0</p>
+            <button id="restart-btn">TRY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let score = 0;
+        let timeLeft = 100;
+        let screenShake = 0;
+        
+        const BLOCK_H = 100;
+        const TREE_W = 80;
+        let playerSide = 'left'; // 'left' or 'right'
+        
+        let treeBlocks = []; // { side: 'none' | 'left' | 'right' }
+        let particles = [];
+        let choppedBlocks = []; // blocks flying off screen
+
+        function generateTree() {
+            treeBlocks = [];
+            // First 2 blocks always safe
+            treeBlocks.push({ side: 'none' });
+            treeBlocks.push({ side: 'none' });
+            
+            // Generate up to 15 blocks
+            for(let i=2; i<15; i++) {
+                addBlock();
+            }
+        }
+
+        function addBlock() {
+            let lastBlock = treeBlocks[treeBlocks.length - 1];
+            if (lastBlock.side !== 'none') {
+                treeBlocks.push({ side: 'none' }); // Must be safe above a branch
+            } else {
+                let r = Math.random();
+                if (r < 0.3) treeBlocks.push({ side: 'left' });
+                else if (r < 0.6) treeBlocks.push({ side: 'right' });
+                else treeBlocks.push({ side: 'none' });
+            }
+        }
+
+        function createChips(x, y) {
+            for(let i=0; i<10; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random()-0.5)*15, vy: -Math.random()*10,
+                    life: 20, color: '#f1c40f'
+                });
+            }
+        }
+
+        function chop(side) {
+            if (!isRunning) return;
+            
+            playerSide = side;
+            
+            // Check for death before chopping if standing in branch
+            if (treeBlocks[0].side === side) {
+                die();
+                return;
+            }
+
+            // Remove bottom block and fling it
+            let chopped = treeBlocks.shift();
+            addBlock();
+            
+            let flingVx = side === 'left' ? 15 : -15;
+            choppedBlocks.push({
+                x: width/2 - TREE_W/2, y: height - 150 - BLOCK_H, w: TREE_W, h: BLOCK_H,
+                vx: flingVx, vy: -5, rot: 0, branchSide: chopped.side
+            });
+            
+            createChips(width/2 + (side==='left'?-40:40), height - 200);
+
+            // Add score and time
+            score++;
+            document.getElementById('scoreEl').textContent = score;
+            timeLeft = Math.min(100, timeLeft + 2);
+            
+            // Check death on new bottom block
+            if (treeBlocks[0].side === side) {
+                die();
+            }
+        }
+
+        function update() {
+            // Timer logic
+            timeLeft -= 0.2 + (score * 0.002); // gets faster
+            document.getElementById('time-bar').style.width = `${Math.max(0, timeLeft)}%`;
+            
+            if (timeLeft <= 0) {
+                die();
+                return;
+            }
+
+            if (screenShake > 0) screenShake *= 0.8;
+            if (screenShake < 0.5) screenShake = 0;
+
+            // Update flying blocks
+            for(let i=choppedBlocks.length-1; i>=0; i--) {
+                let b = choppedBlocks[i];
+                b.x += b.vx; b.y += b.vy; b.vy += 1; b.rot += b.vx * 0.02;
+                if(b.y > height + 200) choppedBlocks.splice(i, 1);
+            }
+
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.vy += 0.5; p.life--;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function drawBlock(ctx, x, y, side) {
+            ctx.fillStyle = 'var(--tree)';
+            ctx.fillRect(x, y, TREE_W, BLOCK_H);
+            
+            // Bark lines
+            ctx.fillStyle = '#5c2a07';
+            ctx.fillRect(x + 10, y, 5, BLOCK_H);
+            ctx.fillRect(x + 30, y, 10, BLOCK_H);
+            ctx.fillRect(x + 55, y, 5, BLOCK_H);
+
+            if (side === 'left') {
+                ctx.fillStyle = 'var(--branch)';
+                ctx.fillRect(x - 120, y + 20, 120, 40);
+                // Leaves
+                ctx.fillStyle = '#2ecc71';
+                ctx.fillRect(x - 140, y, 40, 60);
+            } else if (side === 'right') {
+                ctx.fillStyle = 'var(--branch)';
+                ctx.fillRect(x + TREE_W, y + 20, 120, 40);
+                // Leaves
+                ctx.fillStyle = '#2ecc71';
+                ctx.fillRect(x + TREE_W + 100, y, 40, 60);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            ctx.save();
+            if (screenShake > 0) {
+                ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
+            }
+
+            // Base Stump
+            let stumpY = height - 150;
+            ctx.fillStyle = '#5c2a07';
+            ctx.fillRect(width/2 - TREE_W/2, stumpY, TREE_W, 150);
+
+            // Tree Blocks
+            for (let i=0; i<8; i++) {
+                if (i >= treeBlocks.length) break;
+                let b = treeBlocks[i];
+                let by = stumpY - (i + 1) * BLOCK_H;
+                drawBlock(ctx, width/2 - TREE_W/2, by, b.side);
+            }
+
+            // Chopped Blocks
+            choppedBlocks.forEach(b => {
+                ctx.save();
+                ctx.translate(b.x + b.w/2, b.y + b.h/2);
+                ctx.rotate(b.rot);
+                drawBlock(ctx, -b.w/2, -b.h/2, b.branchSide);
+                ctx.restore();
+            });
+
+            // Player (Lumberjack)
+            let px = playerSide === 'left' ? width/2 - TREE_W/2 - 70 : width/2 + TREE_W/2 + 10;
+            let py = stumpY - BLOCK_H + 20;
+
+            ctx.fillStyle = 'var(--player)'; // Shirt
+            ctx.fillRect(px, py + 30, 60, 50);
+            ctx.fillStyle = '#f1c27d'; // Face/Hands
+            ctx.fillRect(px + 10, py, 40, 30);
+            ctx.fillStyle = '#34495e'; // Pants
+            ctx.fillRect(px, py + 80, 60, 20);
+
+            // Axe
+            ctx.fillStyle = '#7f8c8d'; // Blade
+            let axeX = playerSide === 'left' ? px + 40 : px - 10;
+            ctx.fillRect(axeX, py + 10, 30, 25);
+            ctx.fillStyle = '#d35400'; // Handle
+            let handleX = playerSide === 'left' ? px + 35 : px + 15;
+            ctx.fillRect(handleX, py + 20, 10, 50);
+
+            // Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 6, 6);
+            });
+
+            ctx.restore();
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function die() {
+            isRunning = false;
+            screenShake = 15;
+            draw(); // draw one last frame with shake
+            
+            setTimeout(() => {
+                document.getElementById('final-stats').textContent = `Score: ${score}`;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+            }, 300);
+        }
+
+        // Controls
+        window.addEventListener('keydown', e => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chop('left'); }
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); chop('right'); }
+        });
+        
+        document.getElementById('zone-left').addEventListener('touchstart', e => { e.preventDefault(); chop('left'); }, {passive:false});
+        document.getElementById('zone-right').addEventListener('touchstart', e => { e.preventDefault(); chop('right'); }, {passive:false});
+        document.getElementById('zone-left').addEventListener('mousedown', e => { e.preventDefault(); chop('left'); });
+        document.getElementById('zone-right').addEventListener('mousedown', e => { e.preventDefault(); chop('right'); });
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            score = 0; timeLeft = 100; screenShake = 0;
+            document.getElementById('scoreEl').textContent = '0';
+            
+            choppedBlocks = []; particles = [];
+            playerSide = 'left';
+            generateTree();
+            
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

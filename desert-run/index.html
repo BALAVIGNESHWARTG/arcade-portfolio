@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Desert Run DX</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --sky-day: #87CEEB;
+            --sky-night: #191970;
+            --ground-day: #f4a460;
+            --ground-night: #8b4513;
+            --text-day: #333;
+            --text-night: #ddd;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #000;
+            font-family: 'Press Start 2P', monospace; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+            transition: background-color 2s;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 400px;
+            background-color: var(--sky-day);
+            overflow: hidden; border: 4px solid #fff; border-radius: 8px;
+            transition: background-color 2s, border-color 2s;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 20px; right: 20px; text-align: right;
+            font-size: 20px; z-index: 10; pointer-events: none; color: var(--text-day);
+            transition: color 2s;
+        }
+
+        #hi-score { font-size: 14px; opacity: 0.8; margin-bottom: 5px; }
+
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9); border: 4px solid #333; padding: 30px;
+            text-align: center; box-shadow: 0 10px 20px rgba(0,0,0,0.5); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 450px;
+        }
+        .night-mode .modal { background: rgba(0, 0, 0, 0.9); border-color: #fff; color: #fff; }
+        
+        h1 { margin-top: 0; font-size: 30px; line-height: 1.4; color: #d35400; }
+        .night-mode h1 { color: #f39c12; }
+        p { line-height: 1.5; font-size: 12px; margin-bottom: 30px; }
+        
+        button {
+            background: #d35400; color: #fff; border: none;
+            padding: 15px 30px; font-family: 'Press Start 2P', monospace; font-size: 16px; cursor: pointer; transition: 0.2s;
+            border-radius: 5px; text-transform: uppercase;
+        }
+        button:hover { background: #e67e22; transform: scale(1.05); }
+        .night-mode button { background: #f39c12; color: #000; }
+        .night-mode button:hover { background: #f1c40f; }
+        
+        .hidden { display: none !important; }
+
+        #controls-overlay {
+            position: absolute; bottom: 10px; left: 0; width: 100%; height: 50%;
+            display: flex; z-index: 20;
+        }
+        .btn-zone { flex: 1; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud">
+            <div id="hi-score">HI 00000</div>
+            <div id="scoreEl">00000</div>
+        </div>
+        
+        <div id="controls-overlay">
+            <div class="btn-zone" id="btn-duck" style="height: 100%; display: flex; align-items:flex-end;"></div>
+            <div class="btn-zone" id="btn-jump" style="height: 100%; display: flex; align-items:flex-start;"></div>
+        </div>
+
+        <div id="start-screen" class="modal">
+            <h1>Desert Run DX</h1>
+            <p>Space/Up/Tap Right to Jump.<br>Down/Tap Left to Duck.<br>Survive the endless desert.</p>
+            <button id="start-btn">Start Trek</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1>Game Over</h1>
+            <button id="restart-btn">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let score = 0;
+        let hiScore = localStorage.getItem('desertRunHiScore') || 0;
+        document.getElementById('hi-score').textContent = `HI ${hiScore.toString().padStart(5, '0')}`;
+        
+        let frameCount = 0;
+        let gameSpeed = 8;
+        let isNight = false;
+
+        // Constants
+        const GRAVITY = 1.2;
+        const JUMP = -18;
+        const GROUND_Y = height - 50;
+
+        let player = {
+            x: 50, y: GROUND_Y - 40, w: 40, h: 40, 
+            vy: 0, isJumping: false, isDucking: false, dead: false
+        };
+
+        let obstacles = [];
+        let clouds = [];
+        let stars = [];
+        let particles = [];
+        
+        function spawnCloud() {
+            clouds.push({
+                x: width, y: Math.random() * (height / 2),
+                w: 60 + Math.random()*40, h: 20 + Math.random()*10,
+                speed: 1 + Math.random() * 2
+            });
+        }
+
+        function initStars() {
+            stars = [];
+            for(let i=0; i<30; i++) {
+                stars.push({
+                    x: Math.random() * width, y: Math.random() * (height / 1.5),
+                    size: Math.random() * 3
+                });
+            }
+        }
+
+        function spawnObstacle() {
+            let r = Math.random();
+            if (r > 0.7 && score > 200) {
+                // Bird (Pterodactyl)
+                let yPos = [GROUND_Y - 30, GROUND_Y - 70, GROUND_Y - 110]; // Low, Mid, High
+                obstacles.push({
+                    type: 'bird',
+                    x: width, y: yPos[Math.floor(Math.random()*3)],
+                    w: 40, h: 30,
+                    frame: 0
+                });
+            } else {
+                // Cactus
+                let cType = Math.floor(Math.random() * 3);
+                let w = 20 + cType * 15;
+                let h = 40 + Math.random() * 30;
+                obstacles.push({
+                    type: 'cactus',
+                    x: width, y: GROUND_Y - h,
+                    w: w, h: h
+                });
+            }
+        }
+
+        function update() {
+            frameCount++;
+            score += 0.1;
+            
+            // Speed up
+            if (frameCount % 600 === 0 && gameSpeed < 20) {
+                gameSpeed += 0.5;
+            }
+            
+            // Day / Night Cycle
+            if (frameCount % 1500 === 0) {
+                isNight = !isNight;
+                if (isNight) {
+                    container.style.backgroundColor = 'var(--sky-night)';
+                    container.style.borderColor = '#555';
+                    document.querySelector('.hud').style.color = 'var(--text-night)';
+                    container.classList.add('night-mode');
+                } else {
+                    container.style.backgroundColor = 'var(--sky-day)';
+                    container.style.borderColor = '#fff';
+                    document.querySelector('.hud').style.color = 'var(--text-day)';
+                    container.classList.remove('night-mode');
+                }
+            }
+
+            document.getElementById('scoreEl').textContent = Math.floor(score).toString().padStart(5, '0');
+
+            // Physics
+            player.vy += GRAVITY;
+            
+            // Fast fall if ducking in air
+            if (player.isJumping && player.isDucking) player.vy += GRAVITY;
+
+            player.y += player.vy;
+
+            // Ground Collision
+            if (player.y > GROUND_Y - (player.isDucking ? 20 : 40)) {
+                player.y = GROUND_Y - (player.isDucking ? 20 : 40);
+                player.vy = 0;
+                player.isJumping = false;
+            }
+
+            // Adjust hitbox for ducking
+            let pRect = {
+                left: player.x + 5, right: player.x + player.w - 5,
+                top: player.y + 5, bottom: player.y + (player.isDucking ? 20 : 40) - 5
+            };
+
+            // Clouds
+            if (Math.random() < 0.01) spawnCloud();
+            for(let i=clouds.length-1; i>=0; i--) {
+                clouds[i].x -= clouds[i].speed;
+                if(clouds[i].x + clouds[i].w < 0) clouds.splice(i, 1);
+            }
+
+            // Obstacles
+            let spawnRate = Math.max(40, 100 - gameSpeed * 2);
+            if (frameCount % Math.floor(spawnRate) === 0) spawnObstacle();
+
+            for(let i=obstacles.length-1; i>=0; i--) {
+                let obs = obstacles[i];
+                obs.x -= gameSpeed;
+                
+                if (obs.type === 'bird') {
+                    if (frameCount % 10 === 0) obs.frame = (obs.frame + 1) % 2;
+                }
+
+                let oRect = {
+                    left: obs.x + 5, right: obs.x + obs.w - 5,
+                    top: obs.y + 5, bottom: obs.y + obs.h - 5
+                };
+
+                // Collision
+                if (pRect.right > oRect.left && pRect.left < oRect.right &&
+                    pRect.bottom > oRect.top && pRect.top < oRect.bottom) {
+                    die();
+                    return;
+                }
+
+                if (obs.x + obs.w < 0) obstacles.splice(i, 1);
+            }
+
+            // Particles (dust)
+            if (!player.isJumping && frameCount % 5 === 0) {
+                particles.push({
+                    x: player.x - 5, y: GROUND_Y - 5,
+                    vx: -2 - Math.random()*2, vy: -Math.random()*2,
+                    life: 15
+                });
+            }
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.life--;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Stars (if night)
+            if (isNight) {
+                ctx.fillStyle = '#fff';
+                stars.forEach(s => {
+                    ctx.globalAlpha = 0.5 + Math.sin(frameCount*0.05 + s.x)*0.5;
+                    ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            // Clouds
+            ctx.fillStyle = isNight ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)';
+            clouds.forEach(c => {
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, c.h/2, Math.PI/2, Math.PI*1.5);
+                ctx.arc(c.x + c.w/2, c.y - c.h/2, c.h*0.8, Math.PI, 0);
+                ctx.arc(c.x + c.w, c.y, c.h/2, Math.PI*1.5, Math.PI/2);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // Ground
+            ctx.fillStyle = isNight ? 'var(--ground-night)' : 'var(--ground-day)';
+            ctx.fillRect(0, GROUND_Y, width, height - GROUND_Y);
+            
+            // Ground details (scrolling)
+            ctx.fillStyle = isNight ? '#5c2a07' : '#d35400';
+            for(let i = -(frameCount * gameSpeed % 100); i < width; i += 100) {
+                ctx.fillRect(i, GROUND_Y + 10, 10, 5);
+                ctx.fillRect(i + 40, GROUND_Y + 25, 15, 4);
+                ctx.fillRect(i + 80, GROUND_Y + 5, 8, 8);
+            }
+
+            // Obstacles
+            obstacles.forEach(obs => {
+                if (obs.type === 'cactus') {
+                    ctx.fillStyle = isNight ? '#1e5f30' : '#2ecc71';
+                    // Main stem
+                    ctx.fillRect(obs.x + obs.w*0.3, obs.y, obs.w*0.4, obs.h);
+                    // Arms
+                    ctx.fillRect(obs.x, obs.y + obs.h*0.3, obs.w*0.3, obs.h*0.1);
+                    ctx.fillRect(obs.x, obs.y + obs.h*0.1, obs.w*0.1, obs.h*0.3);
+                    ctx.fillRect(obs.x + obs.w*0.7, obs.y + obs.h*0.4, obs.w*0.3, obs.h*0.1);
+                    ctx.fillRect(obs.x + obs.w*0.9, obs.y + obs.h*0.2, obs.w*0.1, obs.h*0.3);
+                } else if (obs.type === 'bird') {
+                    ctx.fillStyle = isNight ? '#666' : '#333';
+                    // Body
+                    ctx.fillRect(obs.x + 10, obs.y + 10, 20, 10);
+                    // Head/Beak
+                    ctx.fillRect(obs.x, obs.y + 15, 10, 5);
+                    // Wings
+                    if (obs.frame === 0) {
+                        ctx.fillRect(obs.x + 15, obs.y, 10, 10);
+                    } else {
+                        ctx.fillRect(obs.x + 15, obs.y + 20, 10, 10);
+                    }
+                }
+            });
+
+            // Particles
+            ctx.fillStyle = 'rgba(200, 200, 200, 0.5)';
+            particles.forEach(p => {
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+
+            // Player (Dino-like shape)
+            ctx.fillStyle = isNight ? '#aaa' : '#333';
+            
+            let pY = player.y;
+            let pH = player.isDucking ? 20 : 40;
+            
+            // Simple blocky character
+            if (player.isDucking) {
+                ctx.fillRect(player.x, pY, player.w + 20, pH); // Long body
+                ctx.fillRect(player.x + player.w + 10, pY - 10, 10, 15); // Low head
+            } else {
+                ctx.fillRect(player.x + 10, pY + 15, 20, 25); // Body
+                ctx.fillRect(player.x + 20, pY, 20, 15); // Head
+                ctx.fillRect(player.x, pY + 20, 10, 5); // Tail
+                
+                // Legs animation
+                if (!player.isJumping) {
+                    if (Math.floor(frameCount / 5) % 2 === 0) {
+                        ctx.fillRect(player.x + 10, pY + 40, 5, 5);
+                        ctx.fillRect(player.x + 25, pY + 35, 5, 10);
+                    } else {
+                        ctx.fillRect(player.x + 10, pY + 35, 5, 10);
+                        ctx.fillRect(player.x + 25, pY + 40, 5, 5);
+                    }
+                } else {
+                    ctx.fillRect(player.x + 10, pY + 35, 5, 5);
+                    ctx.fillRect(player.x + 25, pY + 35, 5, 5);
+                }
+            }
+            
+            // Eye
+            ctx.fillStyle = isNight ? '#f39c12' : '#fff';
+            if (player.isDucking) ctx.fillRect(player.x + player.w + 15, pY - 8, 2, 2);
+            else ctx.fillRect(player.x + 30, pY + 3, 3, 3);
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function die() {
+            isRunning = false;
+            let finalScore = Math.floor(score);
+            if (finalScore > hiScore) {
+                hiScore = finalScore;
+                localStorage.setItem('desertRunHiScore', hiScore);
+                document.getElementById('hi-score').textContent = `HI ${hiScore.toString().padStart(5, '0')}`;
+            }
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        // Controls
+        function jump() {
+            if (!player.isJumping) {
+                player.vy = JUMP;
+                player.isJumping = true;
+            }
+        }
+        function duck(active) {
+            if (!player.isJumping || active) {
+                player.isDucking = active;
+                if (active && player.isJumping) player.vy += 5; // Fast fall
+            }
+        }
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); jump(); }
+            if (e.code === 'ArrowDown') { e.preventDefault(); duck(true); }
+        });
+        window.addEventListener('keyup', e => {
+            if (e.code === 'ArrowDown') { e.preventDefault(); duck(false); }
+        });
+
+        // Touch zones
+        document.getElementById('btn-jump').addEventListener('touchstart', e => { e.preventDefault(); jump(); }, {passive: false});
+        document.getElementById('btn-duck').addEventListener('touchstart', e => { e.preventDefault(); duck(true); }, {passive: false});
+        document.getElementById('btn-duck').addEventListener('touchend', e => { e.preventDefault(); duck(false); });
+        
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            score = 0; frameCount = 0; gameSpeed = 8; isNight = false;
+            player.y = GROUND_Y - 40; player.vy = 0; player.isJumping = false; player.isDucking = false;
+            obstacles = []; clouds = []; particles = [];
+            initStars();
+            
+            container.style.backgroundColor = 'var(--sky-day)';
+            container.style.borderColor = '#fff';
+            document.querySelector('.hud').style.color = 'var(--text-day)';
+            container.classList.remove('night-mode');
+
+            isRunning = true;
+            loop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>
