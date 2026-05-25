@@ -1,1 +1,682 @@
-<!DOCTYPE html><html><head><title>Coming Soon: 2048</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>2048 - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon 2048: Cyber Logic</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@700&display=swap');
+
+        :root {
+            --bg-color: #050510;
+            --grid-bg: #111;
+            --empty-slot: #222;
+            --neon-blue: #00f3ff;
+            --neon-purple: #bd00ff;
+            --text-color: #fff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: var(--text-color);
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* Setup Screen Styles */
+        #setup-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .setup-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 40px;
+            color: var(--neon-blue);
+            text-shadow: 0 0 20px var(--neon-blue);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .setup-subtitle {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 40px;
+            letter-spacing: 2px;
+        }
+
+        .setup-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            background: rgba(255,255,255,0.05);
+            padding: 30px;
+            border: 1px solid #333;
+            border-radius: 10px;
+        }
+
+        label {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
+            color: var(--neon-purple);
+            margin-bottom: 5px;
+        }
+
+        select {
+            background: #000;
+            color: #fff;
+            border: 1px solid var(--neon-blue);
+            padding: 10px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 20px;
+            border-radius: 5px;
+            width: 200px;
+            text-align: center;
+            outline: none;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+        }
+
+        #start-game-btn {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 2px solid var(--neon-blue);
+            padding: 15px 40px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+
+        #start-game-btn:hover {
+            background: var(--neon-blue);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-blue);
+        }
+
+        /* Game UI */
+        #game-container {
+            display: flex; 
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            width: 100%; 
+            max-width: 330px; 
+            align-items: center;
+        }
+
+        h1 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 20px; 
+            color: var(--neon-blue);
+            margin: 0;
+            text-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .score-box {
+            background: #222;
+            padding: 5px 15px;
+            border: 1px solid var(--neon-purple);
+            border-radius: 5px;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .score-label { font-size: 10px; color: #888; }
+        .score-val { font-size: 20px; font-weight: bold; }
+
+        #canvas-wrapper {
+            position: relative;
+            padding: 10px;
+            background: var(--grid-bg);
+            border: 2px solid #333;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
+        }
+
+        canvas {
+            display: block;
+            border-radius: 5px;
+        }
+
+        #game-over-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            display: none; 
+        }
+
+        #reset-btn {
+            margin-top: 20px;
+            background: transparent;
+            color: var(--neon-blue);
+            border: 2px solid var(--neon-blue);
+            padding: 10px 20px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #reset-btn:hover {
+            background: var(--neon-blue);
+            color: #000;
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .controls-hint {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Setup Screen -->
+    <div id="setup-screen">
+        <div class="setup-title">NEON 2048</div>
+        <div class="setup-subtitle">CYBER LOGIC PUZZLE</div>
+        
+        <div class="setup-controls">
+            <label>GRID SIZE</label>
+            <select id="grid-size">
+                <option value="4">4 x 4</option>
+                <option value="5">5 x 5</option>
+                <option value="6" selected>6 x 6</option>
+                <option value="7">7 x 7</option>
+                <option value="8">8 x 8</option>
+                <option value="9">9 x 9</option>
+                <option value="10">10 x 10</option>
+            </select>
+            
+            <button id="start-game-btn">INITIATE</button>
+        </div>
+    </div>
+
+    <!-- Game Container -->
+    <div id="game-container" class="hidden">
+        <header id="game-header">
+            <h1 id="game-title">2048</h1>
+            <div class="score-box">
+                <div class="score-label">SCORE</div>
+                <div class="score-val" id="score">0</div>
+            </div>
+        </header>
+
+        <div id="canvas-wrapper">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div id="game-over-overlay">
+                <h2 style="font-family: 'Press Start 2P'; color: red;">GAME OVER</h2>
+                <button id="reset-btn">TRY AGAIN</button>
+            </div>
+        </div>
+
+        <div class="controls-hint">Use ARROW KEYS or SWIPE</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const overlay = document.getElementById('game-over-overlay');
+        const resetBtn = document.getElementById('reset-btn');
+        const header = document.getElementById('game-header');
+        const setupScreen = document.getElementById('setup-screen');
+        const gameContainer = document.getElementById('game-container');
+        const startBtn = document.getElementById('start-game-btn');
+        const sizeSelector = document.getElementById('grid-size');
+        const gameTitle = document.getElementById('game-title');
+
+        // --- DYNAMIC CONFIG ---
+        let SIZE = 6; 
+        let TILE_SIZE = 45; 
+        let GAP = 5;
+        let BOARD_SIZE = 0;
+        const RADIUS = 5; 
+
+        // --- STATE ---
+        let grid = []; 
+        let score = 0;
+        let moving = false; 
+
+        // Colors per value (Cyberpunk Palette)
+        const COLORS = {
+            2: '#00f3ff',    // Cyan
+            4: '#0099ff',    // Blue
+            8: '#bd00ff',    // Purple
+            16: '#ff00ff',   // Pink
+            32: '#ff0055',   // Red-Pink
+            64: '#ff0000',   // Red
+            128: '#ff9900',  // Orange
+            256: '#ffff00',  // Yellow
+            512: '#39ff14',  // Neon Green
+            1024: '#ffffff', // White
+            2048: '#000000', // Black/Gold
+            4096: '#50c878', // Emerald
+            8192: '#9400d3', // Dark Violet
+            16384: '#ff00cc', // Neon Magenta
+            32768: '#00ff99', // Spring Green
+            65536: '#3300ff', // Electric Indigo
+            131072: '#ff3300' // Electric Orange
+        };
+
+        class Tile {
+            constructor(x, y, value) {
+                this.x = x;
+                this.y = y;
+                this.value = value;
+                this.prevX = x; 
+                this.prevY = y;
+                this.mergedFrom = null; 
+                this.isNew = true; 
+            }
+
+            savePosition() {
+                this.prevX = this.x;
+                this.prevY = this.y;
+            }
+
+            updatePosition(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+        }
+
+        // --- CORE LOGIC ---
+
+        function startGame() {
+            SIZE = parseInt(sizeSelector.value);
+            
+            // Dynamic Sizing based on Viewport
+            const maxWidth = Math.min(window.innerWidth - 40, 500); 
+            // Formula: maxWidth = (TILE * SIZE) + (GAP * (SIZE + 1))
+            // TILE = (maxWidth - (GAP * (SIZE + 1))) / SIZE
+            
+            TILE_SIZE = Math.floor((maxWidth - (GAP * (SIZE + 1))) / SIZE);
+            BOARD_SIZE = (TILE_SIZE * SIZE) + (GAP * (SIZE + 1));
+
+            // Apply sizes
+            canvas.width = BOARD_SIZE;
+            canvas.height = BOARD_SIZE;
+            header.style.width = BOARD_SIZE + 'px';
+            
+            // Update Text
+            gameTitle.innerText = `2048 ${SIZE}x${SIZE}`;
+
+            // Switch Screens
+            setupScreen.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+
+            initGameLogic();
+        }
+
+        function initGameLogic() {
+            grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+            score = 0;
+            scoreEl.innerText = score;
+            overlay.style.display = 'none';
+            addRandomTile();
+            addRandomTile();
+            moving = false;
+            draw(); 
+        }
+
+        function getMaxVal() {
+            let max = 0;
+            for(let x=0; x<SIZE; x++) {
+                for(let y=0; y<SIZE; y++) {
+                    if(grid[x][y] && grid[x][y].value > max) max = grid[x][y].value;
+                }
+            }
+            return max;
+        }
+
+        function addRandomTile() {
+            const cells = [];
+            for (let x = 0; x < SIZE; x++) {
+                for (let y = 0; y < SIZE; y++) {
+                    if (!grid[x][y]) cells.push({ x, y });
+                }
+            }
+            if (cells.length > 0) {
+                const cell = cells[Math.floor(Math.random() * cells.length)];
+                
+                // Dynamic Spawning Logic
+                const max = getMaxVal();
+                // Base pool: Mostly 2s, some 4s
+                let options = [2, 2, 2, 2, 2, 2, 2, 2, 4, 4]; 
+                
+                // Unlocking higher spawns based on progress
+                if (max >= 512) {
+                    options.push(8, 8); // Add chance for 8
+                }
+                if (max >= 1024) {
+                    options.push(16, 32); // Add chance for 16 and 32
+                }
+                if (max >= 4096) {
+                    options.push(64); // Bonus help for very late game
+                }
+                
+                const val = options[Math.floor(Math.random() * options.length)];
+                grid[cell.x][cell.y] = new Tile(cell.x, cell.y, val);
+            }
+        }
+
+        function prepareTiles() {
+            for (let x = 0; x < SIZE; x++) {
+                for (let y = 0; y < SIZE; y++) {
+                    if (grid[x][y]) {
+                        grid[x][y].mergedFrom = null;
+                        grid[x][y].savePosition();
+                        grid[x][y].isNew = false;
+                    }
+                }
+            }
+        }
+
+        function move(vector) {
+            if (moving) return;
+
+            prepareTiles();
+            
+            const traversals = { x: [], y: [] };
+            for (let pos = 0; pos < SIZE; pos++) {
+                traversals.x.push(pos);
+                traversals.y.push(pos);
+            }
+
+            if (vector.x === 1) traversals.x.reverse();
+            if (vector.y === 1) traversals.y.reverse();
+
+            let moved = false;
+
+            traversals.x.forEach(x => {
+                traversals.y.forEach(y => {
+                    const cell = { x, y };
+                    const tile = grid[x][y];
+
+                    if (tile) {
+                        const positions = findFarthestPosition(cell, vector);
+                        const next = positions.next;
+
+                        const nextTile = cellOccupied(next) ? grid[next.x][next.y] : null;
+
+                        if (nextTile && nextTile.value === tile.value && !nextTile.mergedFrom) {
+                            const merged = new Tile(next.x, next.y, tile.value * 2);
+                            merged.mergedFrom = [tile, nextTile];
+                            
+                            grid[x][y] = null;
+                            grid[next.x][next.y] = merged; 
+
+                            tile.updatePosition(next.x, next.y);
+
+                            score += merged.value;
+                            scoreEl.innerText = score;
+                            moved = true;
+                        } else {
+                            if (cell.x !== positions.farthest.x || cell.y !== positions.farthest.y) {
+                                grid[x][y] = null;
+                                grid[positions.farthest.x][positions.farthest.y] = tile;
+                                tile.updatePosition(positions.farthest.x, positions.farthest.y);
+                                moved = true;
+                            }
+                        }
+                    }
+                });
+            });
+
+            if (moved) {
+                addRandomTile();
+                moving = true;
+                let startTime = null;
+                
+                function frame(timestamp) {
+                    if (!startTime) startTime = timestamp;
+                    const progress = Math.min((timestamp - startTime) / 100, 1); 
+
+                    draw(progress);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(frame);
+                    } else {
+                        moving = false;
+                        if (!movesAvailable()) {
+                            overlay.style.display = 'flex';
+                        }
+                    }
+                }
+                requestAnimationFrame(frame);
+            }
+        }
+
+        function findFarthestPosition(cell, vector) {
+            let previous;
+            do {
+                previous = cell;
+                cell = { x: previous.x + vector.x, y: previous.y + vector.y };
+            } while (withinBounds(cell) && !cellOccupied(cell));
+
+            return { farthest: previous, next: cell };
+        }
+
+        function withinBounds(position) {
+            return position.x >= 0 && position.x < SIZE && position.y >= 0 && position.y < SIZE;
+        }
+
+        function cellOccupied(cell) {
+            return withinBounds(cell) && grid[cell.x][cell.y] !== null;
+        }
+
+        function movesAvailable() {
+            for(let x=0; x<SIZE; x++)
+                for(let y=0; y<SIZE; y++)
+                    if(!grid[x][y]) return true;
+
+            for(let x=0; x<SIZE; x++) {
+                for(let y=0; y<SIZE; y++) {
+                    const tile = grid[x][y];
+                    const dirs = [{x:1, y:0}, {x:0, y:1}];
+                    for(let d of dirs) {
+                        const nx = x + d.x;
+                        const ny = y + d.y;
+                        if(withinBounds({x:nx, y:ny}) && grid[nx][ny]) {
+                            if(grid[nx][ny].value === tile.value) return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // --- DRAWING ---
+
+        function drawRoundedRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function draw(progress = 1) {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (let x = 0; x < SIZE; x++) {
+                for (let y = 0; y < SIZE; y++) {
+                    drawTileBg(x, y);
+                }
+            }
+
+            for (let x = 0; x < SIZE; x++) {
+                for (let y = 0; y < SIZE; y++) {
+                    const tile = grid[x][y];
+                    if (tile) {
+                        if (tile.mergedFrom) {
+                            tile.mergedFrom.forEach(merged => {
+                                drawTile(merged, progress);
+                            });
+                        }
+                        drawTile(tile, progress);
+                    }
+                }
+            }
+        }
+
+        function getVisualPosition(x, y) {
+            return {
+                x: x * (TILE_SIZE + GAP) + GAP,
+                y: y * (TILE_SIZE + GAP) + GAP
+            };
+        }
+
+        function drawTileBg(gridX, gridY) {
+            const pos = getVisualPosition(gridX, gridY);
+            ctx.fillStyle = '#222';
+            drawRoundedRect(pos.x, pos.y, TILE_SIZE, TILE_SIZE, RADIUS);
+        }
+
+        function drawTile(tile, progress) {
+            const prev = getVisualPosition(tile.prevX, tile.prevY);
+            const curr = getVisualPosition(tile.x, tile.y);
+            
+            const x = prev.x + (curr.x - prev.x) * progress;
+            const y = prev.y + (curr.y - prev.y) * progress;
+
+            let scale = 1;
+            if (tile.isNew) scale = progress; 
+
+            const center = TILE_SIZE / 2;
+            
+            ctx.save();
+            ctx.translate(x + center, y + center);
+            ctx.scale(scale, scale);
+            ctx.translate(-center, -center);
+
+            const val = tile.value;
+            ctx.fillStyle = COLORS[val] || '#fff';
+            
+            if(val >= 8) {
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = ctx.fillStyle;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+
+            drawRoundedRect(0, 0, TILE_SIZE, TILE_SIZE, RADIUS);
+            
+            ctx.shadowBlur = 0;
+
+            // Set Text Color based on Brightness
+            if (val === 2 || val === 4 || val === 128 || val === 256 || val === 512 || val === 1024 || val === 32768 || val === 131072) {
+                ctx.fillStyle = '#000';
+            } else {
+                ctx.fillStyle = '#fff';
+            }
+
+            if(val === 2048) { ctx.fillStyle = '#d4af37'; ctx.shadowColor='#d4af37'; ctx.shadowBlur=10; }
+
+            // Dynamic font size for large numbers
+            let fontSize = 24;
+            if (val > 1000) fontSize = 18;
+            if (val > 10000) fontSize = 15;
+            if (val > 100000) fontSize = 12;
+            if (SIZE > 8) fontSize -= 4; 
+
+            ctx.font = `bold ${fontSize}px Rajdhani`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(val, center, center + 2);
+
+            ctx.restore();
+        }
+
+        // --- INPUTS ---
+
+        window.addEventListener('keydown', e => {
+            if (setupScreen.style.display !== 'none' && !setupScreen.classList.contains('hidden')) return;
+            if (overlay.style.display === 'flex' || moving) return;
+
+            const map = {
+                'ArrowUp': { x: 0, y: -1 },
+                'ArrowRight': { x: 1, y: 0 },
+                'ArrowDown': { x: 0, y: 1 },
+                'ArrowLeft': { x: -1, y: 0 }
+            };
+
+            const vector = map[e.key];
+            if (vector) {
+                e.preventDefault();
+                move(vector);
+            }
+        });
+
+        // Touch
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        canvas.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+            e.preventDefault();
+        }, {passive: false});
+
+        canvas.addEventListener('touchend', e => {
+            if (overlay.style.display === 'flex' || moving) return;
+            
+            let dx = e.changedTouches[0].screenX - touchStartX;
+            let dy = e.changedTouches[0].screenY - touchStartY;
+            
+            let vector = null;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (Math.abs(dx) > 30) vector = { x: dx > 0 ? 1 : -1, y: 0 };
+            } else {
+                if (Math.abs(dy) > 30) vector = { x: 0, y: dy > 0 ? 1 : -1 };
+            }
+
+            if (vector) move(vector);
+            e.preventDefault();
+        }, {passive: false});
+
+        startBtn.addEventListener('click', startGame);
+        resetBtn.addEventListener('click', () => {
+            // Re-init current config
+            initGameLogic();
+        });
+
+    </script>
+</body>
+</html>

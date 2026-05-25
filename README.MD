@@ -22,19 +22,19 @@ Anchoring credibility with the classics.
 
 [x] Breakout (Completed)
 
-[ ] Pong
+[x] Pong (Completed)
 
-[ ] Space Invaders
+[x] Space Invaders (Completed)
 
-[ ] Asteroids
+[x] Asteroids (Completed)
 
 [ ] Pac-Man (Grid AI)
 
 [ ] Tetris
 
-[ ] Arkanoid
+[x] Arkanoid (Completed)
 
-[ ] Frogger
+[x] Frogger (Completed)
 
 [ ] Missile Command
 

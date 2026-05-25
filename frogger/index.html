@@ -1,1 +1,335 @@
-<!DOCTYPE html><html><head><title>Coming Soon: frogger</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>frogger - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Crossing (Frogger)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --bg-color: #050510;
+            --player-color: #39ff14;
+            --car-color: #ff0044;
+            --log-color: #00f3ff;
+            --safe-color: #111133;
+            --water-color: #000033;
+            --road-color: #0a0a1a;
+            --text-color: #0ff;
+            --ui-bg: rgba(0, 0, 0, 0.85);
+            --border-color: #0ff;
+        }
+
+        * { box-sizing: border-box; touch-action: none; }
+        body {
+            margin: 0; padding: 0; background-color: var(--bg-color);
+            color: var(--text-color); font-family: 'Press Start 2P', monospace;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; overflow: hidden;
+        }
+        #game-container { position: relative; border: 2px solid var(--border-color); box-shadow: 0 0 20px var(--border-color); background-color: var(--bg-color); }
+        canvas { display: block; }
+        #ui-layer { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; display:flex; flex-direction:column; justify-content:space-between; padding:15px; }
+        .hud { display: flex; justify-content: space-between; text-shadow: 0 0 5px var(--text-color); font-size: 14px; z-index: 10; background: rgba(0,0,0,0.5); padding: 10px; }
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background-color: var(--ui-bg); border: 2px solid var(--border-color); padding: 30px;
+            text-align: center; pointer-events: auto; box-shadow: 0 0 30px rgba(0,255,255,0.3); z-index: 20; width: 80%; max-width: 400px;
+        }
+        h1 { color: var(--player-color); text-shadow: 0 0 10px var(--player-color); margin-bottom: 20px; font-size: 20px; line-height: 1.5; }
+        p { margin-bottom: 20px; font-size: 10px; color: #ccc; line-height: 1.5; }
+        button {
+            background: transparent; color: var(--player-color); border: 2px solid var(--player-color);
+            padding: 12px 24px; font-family: 'Press Start 2P', monospace; font-size: 14px; cursor: pointer;
+            text-shadow: 0 0 10px var(--player-color); box-shadow: 0 0 10px var(--player-color); transition: all 0.2s; text-transform: uppercase;
+        }
+        button:hover { background: var(--player-color); color: #000; box-shadow: 0 0 30px var(--player-color); }
+        .hidden { display: none !important; }
+        .scanlines { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2)); background-size: 100% 4px; pointer-events: none; z-index: 100; opacity: 0.6; }
+        
+        #mobile-controls {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px;
+            pointer-events: none; display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; gap: 5px;
+        }
+        .ctrl-btn { pointer-events: auto; background: rgba(0,255,255,0.2); border: 1px solid var(--border-color); color: var(--text-color); display: flex; align-items: center; justify-content: center; font-size: 20px; border-radius: 5px; user-select: none; }
+        .ctrl-btn:active { background: rgba(0,255,255,0.5); }
+        #up { grid-column: 2; grid-row: 1; }
+        #down { grid-column: 2; grid-row: 3; }
+        #left { grid-column: 1; grid-row: 2; }
+        #right { grid-column: 3; grid-row: 2; }
+        @media (min-width: 768px) { #mobile-controls { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="550" height="600"></canvas>
+        <div id="ui-layer">
+            <div class="hud">
+                <span id="scoreEl">SCORE: 0</span>
+                <span id="livesEl">LIVES: 3</span>
+            </div>
+            <div id="mobile-controls">
+                <div class="ctrl-btn" id="up">↑</div>
+                <div class="ctrl-btn" id="left">←</div>
+                <div class="ctrl-btn" id="right">→</div>
+                <div class="ctrl-btn" id="down">↓</div>
+            </div>
+        </div>
+        <div id="start-screen" class="modal">
+            <h1>CYBER CROSSING</h1>
+            <p>AVOID RED VEHICLES<br>RIDE BLUE PLATFORMS<br>REACH THE TOP</p>
+            <button id="start-btn">INSERT COIN</button>
+        </div>
+        <div id="game-over-screen" class="modal hidden">
+            <h1 id="status-text" style="color: #ff0000; text-shadow: 0 0 10px #ff0000;">DATALOSS</h1>
+            <p id="final-score">SCORE: 0</p>
+            <button id="restart-btn">REBOOT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('scoreEl');
+        const livesEl = document.getElementById('livesEl');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreEl = document.getElementById('final-score');
+        
+        const GRID = 50;
+        const ROWS = 12;
+        const COLS = 11;
+
+        let isGameRunning = false;
+        let score = 0;
+        let lives = 3;
+        let maxRowReached = ROWS - 1;
+
+        // Player
+        let frog = { x: 5 * GRID, y: 11 * GRID, width: GRID, height: GRID };
+        
+        // Entities
+        let cars = [];
+        let logs = [];
+        let goals = [false, false, false, false, false];
+
+        function resizeGame() {
+            const sizeH = Math.min(window.innerHeight - 60, 600);
+            const ratio = 550 / 600;
+            const sizeW = sizeH * ratio;
+            canvas.style.width = `${sizeW}px`; canvas.style.height = `${sizeH}px`;
+            document.getElementById('game-container').style.width = `${sizeW}px`;
+            document.getElementById('game-container').style.height = `${sizeH}px`;
+        }
+        window.addEventListener('resize', resizeGame);
+        resizeGame();
+
+        function createLevel() {
+            cars = []; logs = [];
+            // Cars (Rows 6-10)
+            const carSpeeds = [2, -3, 1.5, -2, 2.5];
+            const carWidths = [GRID, GRID*2, GRID, GRID, GRID*1.5];
+            for (let r = 0; r < 5; r++) {
+                let y = (10 - r) * GRID;
+                for (let i = 0; i < 3; i++) {
+                    cars.push({
+                        x: i * 200 + (Math.random() * 50), y: y,
+                        width: carWidths[r], height: GRID - 10,
+                        speed: carSpeeds[r]
+                    });
+                }
+            }
+
+            // Logs (Rows 1-5)
+            const logSpeeds = [1.5, -2, 2.5, -1.5, 3];
+            const logWidths = [GRID*3, GRID*2, GRID*3, GRID*2, GRID*2];
+            for (let r = 0; r < 5; r++) {
+                let y = (5 - r) * GRID;
+                for (let i = 0; i < 3; i++) {
+                    logs.push({
+                        x: i * 250 + (Math.random() * 50), y: y,
+                        width: logWidths[r], height: GRID - 10,
+                        speed: logSpeeds[r]
+                    });
+                }
+            }
+        }
+
+        function resetFrog() {
+            frog.x = 5 * GRID;
+            frog.y = 11 * GRID;
+            maxRowReached = 11;
+        }
+
+        function initGame() {
+            score = 0; lives = 3; goals = [false, false, false, false, false];
+            updateHUD();
+            createLevel();
+            resetFrog();
+            isGameRunning = true;
+            gameLoop();
+        }
+
+        function updateHUD() {
+            scoreEl.textContent = `SCORE: ${score}`;
+            livesEl.textContent = `LIVES: ${lives}`;
+        }
+
+        function death() {
+            lives--;
+            updateHUD();
+            if (lives <= 0) {
+                isGameRunning = false;
+                finalScoreEl.textContent = `SCORE: ${score}`;
+                gameOverScreen.classList.remove('hidden');
+            } else {
+                resetFrog();
+            }
+        }
+
+        function moveFrog(dx, dy) {
+            frog.x += dx * GRID;
+            frog.y += dy * GRID;
+            if (frog.x < 0) frog.x = 0;
+            if (frog.x + frog.width > canvas.width) frog.x = canvas.width - frog.width;
+            if (frog.y < 0) frog.y = 0;
+            if (frog.y + frog.height > canvas.height) frog.y = canvas.height - frog.height;
+
+            // Score for moving forward
+            let currentRow = Math.floor(frog.y / GRID);
+            if (currentRow < maxRowReached) {
+                score += 10;
+                maxRowReached = currentRow;
+                updateHUD();
+            }
+        }
+
+        function update() {
+            let frogRect = { left: frog.x+10, right: frog.x+frog.width-10, top: frog.y+10, bottom: frog.y+frog.height-10 };
+
+            // Cars Update & Collision
+            cars.forEach(car => {
+                car.x += car.speed;
+                if (car.speed > 0 && car.x > canvas.width) car.x = -car.width;
+                else if (car.speed < 0 && car.x + car.width < 0) car.x = canvas.width;
+
+                if (frogRect.left < car.x + car.width && frogRect.right > car.x && frogRect.top < car.y + car.height && frogRect.bottom > car.y) {
+                    death();
+                }
+            });
+
+            // Logs Update
+            let onLog = false;
+            logs.forEach(log => {
+                log.x += log.speed;
+                if (log.speed > 0 && log.x > canvas.width) log.x = -log.width;
+                else if (log.speed < 0 && log.x + log.width < 0) log.x = canvas.width;
+
+                if (frogRect.left < log.x + log.width && frogRect.right > log.x && frogRect.top < log.y + log.height && frogRect.bottom > log.y) {
+                    onLog = true;
+                    frog.x += log.speed; // Move frog with log
+                }
+            });
+
+            // Water Collision
+            if (frog.y < 6 * GRID && frog.y > 0) {
+                if (!onLog) death();
+            }
+
+            // Check Off-screen from log riding
+            if (frog.x < 0 || frog.x + frog.width > canvas.width) {
+                death();
+            }
+
+            // Goal Collision (Row 0)
+            if (frog.y === 0) {
+                let slot = Math.floor(frog.x / (GRID * 2));
+                if (slot >= 0 && slot < 5 && !goals[slot]) {
+                    goals[slot] = true;
+                    score += 50;
+                    resetFrog();
+                    if (goals.every(g => g)) {
+                        score += 1000;
+                        goals = [false, false, false, false, false];
+                        // Speed up level? Maybe later.
+                    }
+                } else {
+                    death(); // Hit wall or already filled slot
+                }
+                updateHUD();
+            }
+        }
+
+        function draw() {
+            // Background areas
+            ctx.fillStyle = 'var(--safe-color)'; ctx.fillRect(0, 11*GRID, canvas.width, GRID); // Start
+            ctx.fillStyle = 'var(--road-color)'; ctx.fillRect(0, 6*GRID, canvas.width, 5*GRID); // Road
+            ctx.fillStyle = 'var(--safe-color)'; ctx.fillRect(0, 5*GRID, canvas.width, GRID); // Median
+            ctx.fillStyle = 'var(--water-color)'; ctx.fillRect(0, GRID, canvas.width, 4*GRID); // Water
+            ctx.fillStyle = '#222'; ctx.fillRect(0, 0, canvas.width, GRID); // Goal area
+
+            // Draw Goals
+            for(let i=0; i<5; i++) {
+                ctx.fillStyle = goals[i] ? 'var(--player-color)' : '#000';
+                ctx.fillRect(i * GRID * 2 + GRID/2, 5, GRID, GRID-10);
+            }
+
+            // Cars
+            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--car-color)'; ctx.fillStyle = 'var(--car-color)';
+            cars.forEach(car => {
+                ctx.fillRect(car.x, car.y + 5, car.width, car.height);
+            });
+
+            // Logs
+            ctx.shadowColor = 'var(--log-color)'; ctx.fillStyle = 'var(--log-color)';
+            logs.forEach(log => {
+                ctx.fillRect(log.x, log.y + 5, log.width, log.height);
+            });
+
+            // Frog
+            ctx.shadowColor = 'var(--player-color)'; ctx.fillStyle = 'var(--player-color)';
+            ctx.fillRect(frog.x + 5, frog.y + 5, frog.width - 10, frog.height - 10);
+            
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            if(!isGameRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Input
+        window.addEventListener('keydown', e => {
+            if(!isGameRunning) return;
+            if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) {
+                e.preventDefault();
+                if(e.code === 'ArrowUp') moveFrog(0, -1);
+                if(e.code === 'ArrowDown') moveFrog(0, 1);
+                if(e.code === 'ArrowLeft') moveFrog(-1, 0);
+                if(e.code === 'ArrowRight') moveFrog(1, 0);
+            }
+        });
+
+        // Touch buttons
+        const dirs = { 'up': [0, -1], 'down': [0, 1], 'left': [-1, 0], 'right': [1, 0] };
+        for(let id in dirs) {
+            document.getElementById(id).addEventListener('touchstart', e => {
+                e.preventDefault();
+                if(isGameRunning) moveFrog(dirs[id][0], dirs[id][1]);
+            });
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            startScreen.classList.add('hidden');
+            initGame();
+        });
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            initGame();
+        });
+    </script>
+</body>
+</html>
