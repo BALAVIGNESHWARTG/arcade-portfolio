@@ -1,1 +1,361 @@
-<!DOCTYPE html><html><head><title>Coming Soon: cyber-drone-strike</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>cyber-drone-strike - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Drone Strike</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --bg-color: #000;
+            --radar-green: #00ff41;
+            --alert-red: #ff003c;
+            --civ-blue: #0088ff;
+            --text-color: #00ff41;
+            --ui-bg: rgba(0, 20, 0, 0.9);
+            --border-color: #00ff41;
+        }
+
+        * { box-sizing: border-box; touch-action: none; }
+        body {
+            margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-color);
+            font-family: 'Share Tech Mono', monospace; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; border: 2px solid var(--border-color);
+            box-shadow: 0 0 20px rgba(0,255,65,0.2), inset 0 0 50px rgba(0,255,65,0.1);
+            background-color: #001100;
+            cursor: crosshair;
+        }
+        canvas { display: block; }
+
+        #ui-layer {
+            position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;
+            display:flex; flex-direction:column; justify-content:space-between; padding:15px; z-index: 10;
+        }
+        .hud { display: flex; justify-content: space-between; text-shadow: 0 0 5px var(--text-color); font-size: 16px; }
+
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background-color: var(--ui-bg); border: 1px solid var(--border-color); padding: 30px;
+            text-align: center; pointer-events: auto; box-shadow: 0 0 30px rgba(0,255,65,0.3); z-index: 20; width: 80%; max-width: 450px;
+        }
+        h1 { color: var(--radar-green); text-shadow: 0 0 10px var(--radar-green); margin-bottom: 20px; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+        p { margin-bottom: 20px; font-size: 12px; color: #aaa; line-height: 1.6; }
+        button {
+            background: rgba(0,255,65,0.1); color: var(--radar-green); border: 1px solid var(--radar-green);
+            padding: 12px 24px; font-family: 'Share Tech Mono', monospace; font-size: 14px; cursor: pointer;
+            text-shadow: 0 0 10px var(--radar-green); transition: all 0.2s; text-transform: uppercase;
+            box-shadow: 0 0 5px rgba(0,255,65,0.3);
+        }
+        button:hover { background: var(--radar-green); color: #000; box-shadow: 0 0 20px var(--radar-green); }
+        .hidden { display: none !important; }
+
+        /* Radar Sweep */
+        .radar-sweep {
+            position: absolute; top: 50%; left: 50%; width: 1000px; height: 1000px;
+            margin-top: -500px; margin-left: -500px;
+            background: conic-gradient(from 0deg, transparent 70%, rgba(0,255,65,0.4) 100%);
+            border-radius: 50%; animation: spin 4s linear infinite; pointer-events: none; z-index: 5;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.4));
+            background-size: 100% 4px; pointer-events: none; z-index: 100; opacity: 0.8;
+        }
+
+        .crt-flicker {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,255,65,0.02); pointer-events: none; z-index: 90;
+            animation: flicker 0.15s infinite;
+        }
+        @keyframes flicker { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.9; } }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div id="game-container">
+        <div class="radar-sweep"></div>
+        <div class="crt-flicker"></div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="ui-layer">
+            <div class="hud">
+                <span id="intelEl">INTEL REQ: 0%</span>
+                <span id="collateralEl">CIV CASUALTIES: 0/3</span>
+            </div>
+            <div style="font-size: 10px; margin-top: auto; opacity: 0.5;">SATELLITE LINK: ACTIVE // LATENCY: 24ms</div>
+        </div>
+        <div id="start-screen" class="modal">
+            <h1>CYBER DRONE STRIKE</h1>
+            <p>TACTICAL BOMBING PROTOCOL.<br><br>MOUSE/TOUCH TO AIM RETICLE. CLICK/TAP TO DROP PAYLOAD.<br>TARGET: RED COMBATANTS.<br>AVOID: BLUE CIVILIANS.<br>ACCOUNT FOR FALL TIME.</p>
+            <button id="start-btn">INITIATE UPLINK</button>
+        </div>
+        <div id="game-over-screen" class="modal hidden">
+            <h1 id="end-title" style="color: var(--alert-red); text-shadow: 0 0 10px var(--alert-red);">COURT MARTIAL</h1>
+            <p id="final-score">MISSION FAILED: EXCESSIVE COLLATERAL DAMAGE.</p>
+            <button id="restart-btn">RETRY UPLINK</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+        
+        let isGameRunning = false;
+        let score = 0, casualties = 0;
+        const MAX_CASUALTIES = 3;
+        const TARGET_SCORE = 1500;
+
+        // Player Reticle
+        let reticle = { x: 400, y: 300, radius: 25 };
+        let bombs = []; // Falling bombs
+        
+        let mouseState = { x: 400, y: 300, down: false };
+
+        // Entities
+        let entities = []; // combatants, civilians, buildings
+        let blasts = []; // Explosion shockwaves
+        let terrainPoints = [];
+
+        // Setup
+        function resize() {
+            const ratio = 800/600;
+            const h = Math.min(window.innerHeight - 40, 600);
+            const w = Math.min(window.innerWidth - 20, h * ratio);
+            canvas.style.width = `${w}px`;
+            canvas.style.height = `${w}px / ${ratio}`;
+            gameContainer.style.width = `${w}px`;
+            gameContainer.style.height = `${w}px / ${ratio}`;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        for(let i=0; i<100; i++) {
+            terrainPoints.push({ x: Math.random()*800, y: Math.random()*600, val: Math.random() });
+        }
+
+        function spawnEntity() {
+            let side = Math.floor(Math.random() * 4);
+            let x, y, vx = 0, vy = 0;
+            if (side === 0) { x = Math.random()*800; y = -20; vy = 0.5; }
+            else if (side === 1) { x = 820; y = Math.random()*600; vx = -0.5; }
+            else if (side === 2) { x = Math.random()*800; y = 620; vy = -0.5; }
+            else { x = -20; y = Math.random()*600; vx = 0.5; }
+
+            let typeRand = Math.random();
+            let type = typeRand > 0.8 ? 'civilian' : (typeRand > 0.6 ? 'tank' : 'truck');
+            
+            entities.push({ x, y, vx, vy, type, size: type === 'tank' ? 12 : 8 });
+        }
+
+        function dropBomb() {
+            // Can only drop 1 at a time for tactical feel
+            if (bombs.length < 2) {
+                bombs.push({
+                    x: reticle.x, y: reticle.y,
+                    z: 100, // height
+                    radius: 40 // blast radius
+                });
+            }
+        }
+
+        function update() {
+            // Update Reticle
+            reticle.x += (mouseState.x - reticle.x) * 0.2;
+            reticle.y += (mouseState.y - reticle.y) * 0.2;
+
+            // Spawning
+            if (Math.random() < 0.02) spawnEntity();
+
+            // Update Entities
+            entities.forEach((e, i) => {
+                e.x += e.vx; e.y += e.vy;
+                
+                // Wander slightly
+                if (Math.random() < 0.01) {
+                    if (e.vx !== 0) e.vy = (Math.random()-0.5)*0.5;
+                    else e.vx = (Math.random()-0.5)*0.5;
+                }
+
+                if (e.x < -50 || e.x > 850 || e.y < -50 || e.y > 650) {
+                    entities.splice(i, 1);
+                }
+            });
+
+            // Update Bombs
+            bombs.forEach((b, i) => {
+                b.z -= 2; // Fall speed
+                if (b.z <= 0) {
+                    // Detonate
+                    blasts.push({ x: b.x, y: b.y, radius: 0, maxRadius: b.radius, life: 1 });
+                    
+                    // Check hits
+                    for(let j = entities.length - 1; j >= 0; j--) {
+                        let e = entities[j];
+                        if (Math.hypot(b.x - e.x, b.y - e.y) < b.radius) {
+                            if (e.type === 'civilian') {
+                                casualties++;
+                                document.getElementById('collateralEl').textContent = `CIV CASUALTIES: ${casualties}/${MAX_CASUALTIES}`;
+                                if (casualties >= MAX_CASUALTIES) gameOver(false);
+                            } else {
+                                score += e.type === 'tank' ? 50 : 25;
+                                let progress = Math.min(100, Math.floor((score/TARGET_SCORE)*100));
+                                document.getElementById('intelEl').textContent = `INTEL REQ: ${progress}%`;
+                                if (progress >= 100) gameOver(true);
+                            }
+                            entities.splice(j, 1);
+                        }
+                    }
+                    bombs.splice(i, 1);
+                }
+            });
+
+            // Update Blasts
+            blasts.forEach((bl, i) => {
+                bl.radius += 5;
+                bl.life -= 0.05;
+                if (bl.life <= 0) blasts.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, 800, 600);
+
+            // Terrain dots (Radar feel)
+            ctx.fillStyle = 'rgba(0, 255, 65, 0.1)';
+            terrainPoints.forEach(p => {
+                ctx.fillRect(p.x, p.y, 2, 2);
+            });
+
+            // Reticle (Base)
+            ctx.strokeStyle = 'rgba(0, 255, 65, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(reticle.x, 0); ctx.lineTo(reticle.x, 600); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, reticle.y); ctx.lineTo(800, reticle.y); ctx.stroke();
+
+            // Entities
+            entities.forEach(e => {
+                ctx.lineWidth = 1;
+                if (e.type === 'civilian') {
+                    ctx.strokeStyle = 'var(--civ-blue)';
+                    ctx.beginPath(); ctx.arc(e.x, e.y, e.size, 0, Math.PI*2); ctx.stroke();
+                    ctx.fillStyle = 'var(--civ-blue)';
+                    ctx.fillRect(e.x-1, e.y-1, 2, 2);
+                } else if (e.type === 'tank') {
+                    ctx.strokeStyle = 'var(--alert-red)';
+                    ctx.beginPath(); ctx.rect(e.x - e.size, e.y - e.size, e.size*2, e.size*2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + e.vx*10, e.y + e.vy*10); ctx.stroke();
+                } else {
+                    ctx.strokeStyle = 'var(--alert-red)';
+                    ctx.beginPath(); ctx.moveTo(e.x, e.y - e.size); ctx.lineTo(e.x + e.size, e.y + e.size); ctx.lineTo(e.x - e.size, e.y + e.size); ctx.closePath(); ctx.stroke();
+                }
+            });
+
+            // Falling Bombs
+            bombs.forEach(b => {
+                ctx.strokeStyle = 'var(--text-color)';
+                ctx.lineWidth = 2;
+                let drawSize = b.z; // Shrinks as it falls
+                
+                // Target circle
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2); ctx.stroke();
+                
+                // Falling indicator
+                ctx.beginPath(); ctx.rect(b.x - drawSize/4, b.y - drawSize/4, drawSize/2, drawSize/2); ctx.stroke();
+                ctx.fillStyle = 'var(--text-color)'; ctx.fillText(`${Math.floor(b.z)}m`, b.x + 10, b.y - 10);
+            });
+
+            // Blasts (Shockwaves)
+            blasts.forEach(bl => {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${bl.life})`;
+                ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(bl.x, bl.y, bl.radius, 0, Math.PI*2); ctx.stroke();
+                
+                // Invert colors inside blast radius for distortion effect
+                if (bl.life > 0.5) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${bl.life - 0.5})`;
+                    ctx.beginPath(); ctx.arc(bl.x, bl.y, bl.radius, 0, Math.PI*2); ctx.fill();
+                }
+            });
+
+            // Reticle (Top Layer)
+            ctx.strokeStyle = 'var(--text-color)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(reticle.x, reticle.y, reticle.radius, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(reticle.x - 10, reticle.y); ctx.lineTo(reticle.x + 10, reticle.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(reticle.x, reticle.y - 10); ctx.lineTo(reticle.x, reticle.y + 10); ctx.stroke();
+            
+            // Coordinates
+            ctx.fillStyle = 'var(--text-color)';
+            ctx.font = '10px "Share Tech Mono"';
+            ctx.fillText(`N${Math.floor(reticle.y)} W${Math.floor(reticle.x)}`, reticle.x + 30, reticle.y + 30);
+        }
+
+        function loop() {
+            if(!isGameRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // Input
+        gameContainer.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouseState.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            mouseState.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+        });
+        
+        gameContainer.addEventListener('mousedown', e => { dropBomb(); });
+        
+        gameContainer.addEventListener('touchmove', e => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            mouseState.x = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+            mouseState.y = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
+        }, {passive:false});
+        
+        gameContainer.addEventListener('touchstart', e => { e.preventDefault(); dropBomb(); }, {passive:false});
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            score = 0; casualties = 0;
+            entities = []; bombs = []; blasts = [];
+            
+            document.getElementById('intelEl').textContent = `INTEL REQ: 0%`;
+            document.getElementById('collateralEl').textContent = `CIV CASUALTIES: 0/${MAX_CASUALTIES}`;
+            
+            isGameRunning = true;
+            loop();
+        }
+
+        function gameOver(win) {
+            isGameRunning = false;
+            let title = document.getElementById('end-title');
+            let desc = document.getElementById('final-score');
+            
+            if (win) {
+                title.textContent = "TARGET SECURED";
+                title.style.color = "var(--radar-green)";
+                title.style.textShadow = "0 0 10px var(--radar-green)";
+                desc.textContent = "INTEL GATHERED SUCCESSFULLY. AWAITING EXFIL.";
+            } else {
+                title.textContent = "COURT MARTIAL";
+                title.style.color = "var(--alert-red)";
+                title.style.textShadow = "0 0 10px var(--alert-red)";
+                desc.textContent = "MISSION FAILED: EXCESSIVE COLLATERAL DAMAGE.";
+            }
+            
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

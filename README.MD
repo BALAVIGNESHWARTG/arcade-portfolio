@@ -52,15 +52,15 @@ High replayability and canvas optimization.
 
 [x] Twin Stick Shooter (Completed)
 
-[ ] Boss Rush Shooter
+[x] Boss Rush Shooter (Completed)
 
-[ ] Endless Asteroid Blaster
+[x] Endless Asteroid Blaster (Completed)
 
-[ ] Neon Air Combat
+[x] Neon Air Combat (Completed)
 
-[ ] Robot Arena Shooter
+[x] Robot Arena Shooter (Completed)
 
-[ ] Cyber Drone Strike
+[x] Cyber Drone Strike (Completed)
 
 🧠 3. Puzzle / Logic (High IQ Signal)
 
