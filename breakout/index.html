@@ -443,8 +443,8 @@
                         ctx.beginPath();
                         ctx.rect(brickX, brickY, brickWidth, brickHeight);
                         ctx.fillStyle = bricks[c][r].color;
-                        ctx.shadowBlur = 10;
-                        ctx.shadowColor = bricks[c][r].color;
+                        
+                        
                         ctx.fill();
                         ctx.closePath();
                     }
@@ -455,8 +455,8 @@
             ctx.beginPath();
             ctx.rect(paddle.x, canvas.height - PADDLE_HEIGHT, paddle.width, PADDLE_HEIGHT);
             ctx.fillStyle = "#00f3ff";
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#00f3ff";
+            
+            
             ctx.fill();
             ctx.closePath();
 
@@ -465,8 +465,8 @@
                 ctx.beginPath();
                 ctx.arc(b.x, b.y, BALL_RADIUS, 0, Math.PI*2);
                 ctx.fillStyle = b.color;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = b.color;
+                
+                
                 ctx.fill();
                 ctx.closePath();
             });
@@ -476,20 +476,20 @@
                 ctx.beginPath();
                 ctx.rect(p.x, p.y, p.width, p.height);
                 ctx.fillStyle = p.color;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = p.color;
+                
+                
                 ctx.fill();
                 ctx.closePath();
                 
                 // Text
                 ctx.fillStyle = "black";
                 ctx.font = "8px Arial";
-                ctx.shadowBlur = 0;
+                
                 let char = p.type === 'wide' ? 'W' : (p.type === 'multi' ? 'M' : '♥');
                 ctx.fillText(char, p.x + 5, p.y + 8);
             });
             
-            ctx.shadowBlur = 0; // Reset
+             // Reset
         }
 
         function loop() {

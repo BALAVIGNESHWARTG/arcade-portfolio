@@ -340,8 +340,8 @@
             }
 
             // Draw Food
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#ff00ff";
+            
+            
             ctx.fillStyle = "#ff00ff";
             ctx.beginPath();
             // Draw food as a circle
@@ -351,8 +351,8 @@
             ctx.fill();
 
             // Draw Snake
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "#39ff14";
+            
+            
             ctx.fillStyle = "#39ff14";
             
             snake.forEach((segment, index) => {
@@ -373,7 +373,7 @@
             });
 
             // Reset shadow for performance
-            ctx.shadowBlur = 0;
+            
         }
 
         function gameOver() {

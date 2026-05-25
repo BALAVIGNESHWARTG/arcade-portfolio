@@ -3,333 +3,639 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyber Crossing (Frogger)</title>
+    <title>Cyber Crossing DX</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
 
         :root {
-            --bg-color: #050510;
-            --player-color: #39ff14;
-            --car-color: #ff0044;
-            --log-color: #00f3ff;
-            --safe-color: #111133;
-            --water-color: #000033;
-            --road-color: #0a0a1a;
-            --text-color: #0ff;
-            --ui-bg: rgba(0, 0, 0, 0.85);
-            --border-color: #0ff;
+            --bg-dark: #050510;
+            --neon-green: #39ff14;
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+            --danger-red: #ff2a2a;
+            --water-deep: #000a20;
+            --water-light: #001f4d;
+            --road-dark: #0a0a1a;
+            --road-line: #ffff00;
         }
 
-        * { box-sizing: border-box; touch-action: none; }
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
         body {
-            margin: 0; padding: 0; background-color: var(--bg-color);
-            color: var(--text-color); font-family: 'Press Start 2P', monospace;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; overflow: hidden;
+            margin: 0; padding: 0; background-color: #000; color: #fff;
+            font-family: 'Orbitron', sans-serif; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
         }
-        #game-container { position: relative; border: 2px solid var(--border-color); box-shadow: 0 0 20px var(--border-color); background-color: var(--bg-color); }
-        canvas { display: block; }
-        #ui-layer { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; display:flex; flex-direction:column; justify-content:space-between; padding:15px; }
-        .hud { display: flex; justify-content: space-between; text-shadow: 0 0 5px var(--text-color); font-size: 14px; z-index: 10; background: rgba(0,0,0,0.5); padding: 10px; }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 600px; max-height: 700px;
+            background-color: var(--bg-dark);
+            box-shadow: 0 0 40px rgba(0, 243, 255, 0.2);
+            border: 4px solid var(--neon-blue);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        /* Fake CSS scanlines, highly optimized (no mix-blend-mode) */
+        .scanlines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 10; pointer-events: none; opacity: 0.6;
+        }
+
+        .hud {
+            position: absolute; top: 10px; left: 15px; right: 15px; display: flex; justify-content: space-between;
+            font-size: 20px; z-index: 15; pointer-events: none;
+            text-shadow: 0 0 10px var(--neon-blue); color: var(--neon-blue);
+        }
+
+        /* Modals */
         .modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background-color: var(--ui-bg); border: 2px solid var(--border-color); padding: 30px;
-            text-align: center; pointer-events: auto; box-shadow: 0 0 30px rgba(0,255,255,0.3); z-index: 20; width: 80%; max-width: 400px;
+            background: rgba(5, 5, 16, 0.95); border: 2px solid var(--neon-pink); padding: 30px;
+            text-align: center; box-shadow: 0 0 30px rgba(255, 0, 255, 0.4); z-index: 30;
+            border-radius: 8px; pointer-events: auto; width: 85%; max-width: 450px;
         }
-        h1 { color: var(--player-color); text-shadow: 0 0 10px var(--player-color); margin-bottom: 20px; font-size: 20px; line-height: 1.5; }
-        p { margin-bottom: 20px; font-size: 10px; color: #ccc; line-height: 1.5; }
+        h1 { color: var(--neon-pink); margin-top: 0; font-size: 32px; text-shadow: 0 0 15px var(--neon-pink); letter-spacing: 2px; }
+        p { color: #aaa; line-height: 1.6; font-size: 14px; margin-bottom: 25px; }
         button {
-            background: transparent; color: var(--player-color); border: 2px solid var(--player-color);
-            padding: 12px 24px; font-family: 'Press Start 2P', monospace; font-size: 14px; cursor: pointer;
-            text-shadow: 0 0 10px var(--player-color); box-shadow: 0 0 10px var(--player-color); transition: all 0.2s; text-transform: uppercase;
+            background: transparent; color: var(--neon-green); border: 2px solid var(--neon-green);
+            padding: 12px 30px; font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: bold;
+            cursor: pointer; transition: 0.2s; border-radius: 4px; box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
         }
-        button:hover { background: var(--player-color); color: #000; box-shadow: 0 0 30px var(--player-color); }
+        button:hover { background: var(--neon-green); color: #000; box-shadow: 0 0 20px var(--neon-green); }
         .hidden { display: none !important; }
-        .scanlines { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2)); background-size: 100% 4px; pointer-events: none; z-index: 100; opacity: 0.6; }
-        
+
+        /* Mobile Controls */
         #mobile-controls {
-            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px;
-            pointer-events: none; display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; gap: 5px;
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: grid; grid-template-columns: 60px 60px 60px; grid-template-rows: 60px 60px 60px; gap: 10px;
+            z-index: 20; pointer-events: none;
         }
-        .ctrl-btn { pointer-events: auto; background: rgba(0,255,255,0.2); border: 1px solid var(--border-color); color: var(--text-color); display: flex; align-items: center; justify-content: center; font-size: 20px; border-radius: 5px; user-select: none; }
-        .ctrl-btn:active { background: rgba(0,255,255,0.5); }
-        #up { grid-column: 2; grid-row: 1; }
-        #down { grid-column: 2; grid-row: 3; }
-        #left { grid-column: 1; grid-row: 2; }
-        #right { grid-column: 3; grid-row: 2; }
+        .touch-btn {
+            background: rgba(0, 243, 255, 0.1); border: 2px solid rgba(0, 243, 255, 0.4); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; color: rgba(0,243,255,0.7); font-size: 24px;
+            pointer-events: auto; transition: 0.1s;
+        }
+        .touch-btn:active { background: rgba(0, 243, 255, 0.4); color: #fff; }
+        #btn-up { grid-column: 2; grid-row: 1; }
+        #btn-down { grid-column: 2; grid-row: 3; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
+        
         @media (min-width: 768px) { #mobile-controls { display: none; } }
     </style>
 </head>
 <body>
-    <div class="scanlines"></div>
     <div id="game-container">
-        <canvas id="gameCanvas" width="550" height="600"></canvas>
-        <div id="ui-layer">
-            <div class="hud">
-                <span id="scoreEl">SCORE: 0</span>
-                <span id="livesEl">LIVES: 3</span>
-            </div>
-            <div id="mobile-controls">
-                <div class="ctrl-btn" id="up">↑</div>
-                <div class="ctrl-btn" id="left">←</div>
-                <div class="ctrl-btn" id="right">→</div>
-                <div class="ctrl-btn" id="down">↓</div>
-            </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="scanlines"></div>
+        
+        <div class="hud">
+            <div id="scoreEl">SCORE: 0</div>
+            <div id="livesEl">LIVES: 3</div>
         </div>
+
+        <div id="mobile-controls">
+            <div class="touch-btn" id="btn-up">▲</div>
+            <div class="touch-btn" id="btn-down">▼</div>
+            <div class="touch-btn" id="btn-left">◀</div>
+            <div class="touch-btn" id="btn-right">▶</div>
+        </div>
+
         <div id="start-screen" class="modal">
             <h1>CYBER CROSSING</h1>
-            <p>AVOID RED VEHICLES<br>RIDE BLUE PLATFORMS<br>REACH THE TOP</p>
-            <button id="start-btn">INSERT COIN</button>
+            <p>AVOID PURSUIT VEHICLES.<br>RIDE HOVER-BARGES.<br>REACH THE DATABANKS.</p>
+            <button id="start-btn">INITIALIZE</button>
         </div>
+        
         <div id="game-over-screen" class="modal hidden">
-            <h1 id="status-text" style="color: #ff0000; text-shadow: 0 0 10px #ff0000;">DATALOSS</h1>
-            <p id="final-score">SCORE: 0</p>
-            <button id="restart-btn">REBOOT</button>
+            <h1 style="color:var(--danger-red); text-shadow: 0 0 15px var(--danger-red);">SYSTEM FAILURE</h1>
+            <p id="final-stats">SCORE: 0</p>
+            <button id="restart-btn" style="color:var(--danger-red); border-color:var(--danger-red);">REBOOT</button>
         </div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('scoreEl');
-        const livesEl = document.getElementById('livesEl');
-        const startScreen = document.getElementById('start-screen');
-        const gameOverScreen = document.getElementById('game-over-screen');
-        const finalScoreEl = document.getElementById('final-score');
+        const container = document.getElementById('game-container');
         
-        const GRID = 50;
-        const ROWS = 12;
-        const COLS = 11;
-
-        let isGameRunning = false;
-        let score = 0;
-        let lives = 3;
-        let maxRowReached = ROWS - 1;
-
-        // Player
-        let frog = { x: 5 * GRID, y: 11 * GRID, width: GRID, height: GRID };
+        let width, height;
+        const GRID = 50; // Logical grid size
+        const COLS = 12;
+        const ROWS = 14;
         
-        // Entities
-        let cars = [];
-        let logs = [];
-        let goals = [false, false, false, false, false];
-
-        function resizeGame() {
-            const sizeH = Math.min(window.innerHeight - 60, 600);
-            const ratio = 550 / 600;
-            const sizeW = sizeH * ratio;
-            canvas.style.width = `${sizeW}px`; canvas.style.height = `${sizeH}px`;
-            document.getElementById('game-container').style.width = `${sizeW}px`;
-            document.getElementById('game-container').style.height = `${sizeH}px`;
+        // Setup internal resolution for fixed scaling
+        canvas.width = COLS * GRID;
+        canvas.height = ROWS * GRID;
+        
+        function resize() {
+            let cw = container.clientWidth;
+            let ch = container.clientHeight;
+            let ratio = canvas.width / canvas.height;
+            
+            let scaleH = ch;
+            let scaleW = scaleH * ratio;
+            
+            if (scaleW > cw) {
+                scaleW = cw;
+                scaleH = scaleW / ratio;
+            }
+            
+            canvas.style.width = `${scaleW}px`;
+            canvas.style.height = `${scaleH}px`;
+            
+            // Center canvas in container
+            canvas.style.left = `${(cw - scaleW)/2}px`;
+            canvas.style.top = `${(ch - scaleH)/2}px`;
         }
-        window.addEventListener('resize', resizeGame);
-        resizeGame();
+        window.addEventListener('resize', resize); resize();
 
-        function createLevel() {
+        let isRunning = false;
+        let score = 0; let lives = 3;
+        let frameCount = 0;
+        let highestRow = ROWS - 1;
+
+        // Visual effects
+        let particles = [];
+        let screenShake = 0;
+
+        // Game Entities
+        let frog = {
+            gridX: 6, gridY: ROWS - 1, // Logical position
+            x: 6 * GRID, y: (ROWS - 1) * GRID, // Visual position
+            vx: 0, vy: 0, 
+            isJumping: false, jumpTimer: 0, maxJumpTimer: 10,
+            targetX: 6 * GRID, targetY: (ROWS - 1) * GRID,
+            dead: false, deathTimer: 0,
+            dir: 'up' // up, down, left, right
+        };
+
+        let cars = [];
+        let logs = []; // Hover barges
+        let goals = [false, false, false, false, false, false];
+
+        const ROAD_START = 8;
+        const ROAD_END = 12;
+        const WATER_START = 2;
+        const WATER_END = 6;
+
+        function buildLevel() {
             cars = []; logs = [];
-            // Cars (Rows 6-10)
-            const carSpeeds = [2, -3, 1.5, -2, 2.5];
-            const carWidths = [GRID, GRID*2, GRID, GRID, GRID*1.5];
-            for (let r = 0; r < 5; r++) {
-                let y = (10 - r) * GRID;
+            
+            // Cars (Rows 8 to 12)
+            const carSpeeds = [2, -3.5, 2.5, -2, 4];
+            const carWidths = [GRID*1.2, GRID*2, GRID*1.5, GRID, GRID*1.8];
+            const carColors = ['#ff2a2a', '#ff00ff', '#ff8800', '#ff2a2a', '#ff00ff'];
+            
+            for (let r = 0; r <= ROAD_END - ROAD_START; r++) {
+                let y = (ROAD_END - r) * GRID;
+                let numCars = 2 + Math.random();
                 for (let i = 0; i < 3; i++) {
                     cars.push({
-                        x: i * 200 + (Math.random() * 50), y: y,
-                        width: carWidths[r], height: GRID - 10,
-                        speed: carSpeeds[r]
+                        x: i * (canvas.width/2.5) + Math.random()*50, y: y,
+                        w: carWidths[r], h: GRID * 0.8,
+                        speed: carSpeeds[r], color: carColors[r]
                     });
                 }
             }
 
-            // Logs (Rows 1-5)
-            const logSpeeds = [1.5, -2, 2.5, -1.5, 3];
-            const logWidths = [GRID*3, GRID*2, GRID*3, GRID*2, GRID*2];
-            for (let r = 0; r < 5; r++) {
-                let y = (5 - r) * GRID;
+            // Barges (Rows 2 to 6)
+            const logSpeeds = [1.8, -2.5, 2, -1.5, 3];
+            const logWidths = [GRID*3, GRID*2, GRID*3.5, GRID*2.5, GRID*2];
+            
+            for (let r = 0; r <= WATER_END - WATER_START; r++) {
+                let y = (WATER_END - r) * GRID;
                 for (let i = 0; i < 3; i++) {
                     logs.push({
-                        x: i * 250 + (Math.random() * 50), y: y,
-                        width: logWidths[r], height: GRID - 10,
+                        x: i * (canvas.width/2.5) + Math.random()*50, y: y,
+                        w: logWidths[r], h: GRID * 0.8,
                         speed: logSpeeds[r]
                     });
                 }
             }
         }
 
-        function resetFrog() {
-            frog.x = 5 * GRID;
-            frog.y = 11 * GRID;
-            maxRowReached = 11;
-        }
-
-        function initGame() {
-            score = 0; lives = 3; goals = [false, false, false, false, false];
-            updateHUD();
-            createLevel();
-            resetFrog();
-            isGameRunning = true;
-            gameLoop();
-        }
-
-        function updateHUD() {
-            scoreEl.textContent = `SCORE: ${score}`;
-            livesEl.textContent = `LIVES: ${lives}`;
-        }
-
-        function death() {
-            lives--;
-            updateHUD();
-            if (lives <= 0) {
-                isGameRunning = false;
-                finalScoreEl.textContent = `SCORE: ${score}`;
-                gameOverScreen.classList.remove('hidden');
-            } else {
-                resetFrog();
+        function createParticles(x, y, color, count, isSplash) {
+            for(let i=0; i<count; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random()-0.5)*10,
+                    vy: isSplash ? -Math.random()*8 - 2 : (Math.random()-0.5)*10,
+                    life: isSplash ? 20 : 30, maxLife: isSplash ? 20 : 30,
+                    color: color, isSplash: isSplash
+                });
             }
         }
 
-        function moveFrog(dx, dy) {
-            frog.x += dx * GRID;
-            frog.y += dy * GRID;
-            if (frog.x < 0) frog.x = 0;
-            if (frog.x + frog.width > canvas.width) frog.x = canvas.width - frog.width;
-            if (frog.y < 0) frog.y = 0;
-            if (frog.y + frog.height > canvas.height) frog.y = canvas.height - frog.height;
+        function resetFrog() {
+            frog.gridX = 6; frog.gridY = ROWS - 1;
+            frog.x = frog.gridX * GRID; frog.y = frog.gridY * GRID;
+            frog.targetX = frog.x; frog.targetY = frog.y;
+            frog.isJumping = false;
+            frog.dead = false; frog.deathTimer = 0;
+            frog.dir = 'up';
+            highestRow = ROWS - 1;
+        }
 
-            // Score for moving forward
-            let currentRow = Math.floor(frog.y / GRID);
-            if (currentRow < maxRowReached) {
+        function triggerDeath(type) {
+            if (frog.dead) return;
+            frog.dead = true;
+            frog.deathTimer = 60;
+            screenShake = 15;
+            lives--;
+            document.getElementById('livesEl').textContent = `LIVES: ${lives}`;
+            
+            if (type === 'car') {
+                createParticles(frog.x + GRID/2, frog.y + GRID/2, 'var(--neon-green)', 30, false);
+                createParticles(frog.x + GRID/2, frog.y + GRID/2, 'var(--danger-red)', 20, false);
+            } else if (type === 'water') {
+                createParticles(frog.x + GRID/2, frog.y + GRID/2, 'var(--neon-blue)', 40, true);
+            }
+
+            if (lives <= 0) {
+                setTimeout(gameOver, 1000);
+            }
+        }
+
+        function moveFrog(dx, dy, dirStr) {
+            if (frog.isJumping || frog.dead) return;
+            
+            let nx = frog.gridX + dx;
+            let ny = frog.gridY + dy;
+            
+            // Bounds
+            if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return;
+            
+            frog.dir = dirStr;
+            frog.gridX = nx; frog.gridY = ny;
+            frog.targetX = nx * GRID;
+            frog.targetY = ny * GRID;
+            frog.isJumping = true;
+            frog.jumpTimer = 0;
+
+            // Scoring
+            if (ny < highestRow) {
+                highestRow = ny;
                 score += 10;
-                maxRowReached = currentRow;
-                updateHUD();
+                document.getElementById('scoreEl').textContent = `SCORE: ${score}`;
             }
         }
 
         function update() {
-            let frogRect = { left: frog.x+10, right: frog.x+frog.width-10, top: frog.y+10, bottom: frog.y+frog.height-10 };
+            frameCount++;
+            if (screenShake > 0) screenShake *= 0.8;
+            if (screenShake < 0.5) screenShake = 0;
 
-            // Cars Update & Collision
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy;
+                if(p.isSplash) p.vy += 0.5; // gravity for splash
+                p.life--;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+
+            if (frog.dead) {
+                frog.deathTimer--;
+                if (frog.deathTimer <= 0 && lives > 0) {
+                    resetFrog();
+                }
+                return; // Stop updating game logic while dead
+            }
+
+            // Frog Jump Interpolation
+            if (frog.isJumping) {
+                frog.jumpTimer++;
+                let t = frog.jumpTimer / frog.maxJumpTimer;
+                // Ease out
+                let ease = 1 - Math.pow(1 - t, 3);
+                frog.x = frog.x + (frog.targetX - frog.x) * 0.3; // smooth catchup
+                frog.y = frog.y + (frog.targetY - frog.y) * 0.3;
+                
+                if (frog.jumpTimer >= frog.maxJumpTimer) {
+                    frog.isJumping = false;
+                    frog.x = frog.targetX; frog.y = frog.targetY;
+                    
+                    // Create landing splash if on barge
+                    if (frog.gridY >= WATER_START && frog.gridY <= WATER_END) {
+                        createParticles(frog.x + GRID/2, frog.y + GRID, 'var(--neon-blue)', 10, true);
+                    }
+                }
+            }
+
+            let frogRect = { left: frog.x+10, right: frog.x+GRID-10, top: frog.y+10, bottom: frog.y+GRID-10 };
+
+            // Cars
             cars.forEach(car => {
                 car.x += car.speed;
-                if (car.speed > 0 && car.x > canvas.width) car.x = -car.width;
-                else if (car.speed < 0 && car.x + car.width < 0) car.x = canvas.width;
+                if (car.speed > 0 && car.x > canvas.width + 50) car.x = -car.w - 50;
+                else if (car.speed < 0 && car.x + car.w < -50) car.x = canvas.width + 50;
 
-                if (frogRect.left < car.x + car.width && frogRect.right > car.x && frogRect.top < car.y + car.height && frogRect.bottom > car.y) {
-                    death();
+                // Collision
+                if (!frog.isJumping || frog.jumpTimer > frog.maxJumpTimer/2) {
+                    if (frogRect.left < car.x + car.w && frogRect.right > car.x && 
+                        frogRect.top < car.y + car.h && frogRect.bottom > car.y) {
+                        triggerDeath('car');
+                    }
                 }
             });
 
-            // Logs Update
+            // Hover Barges (Logs)
             let onLog = false;
             logs.forEach(log => {
                 log.x += log.speed;
-                if (log.speed > 0 && log.x > canvas.width) log.x = -log.width;
-                else if (log.speed < 0 && log.x + log.width < 0) log.x = canvas.width;
+                if (log.speed > 0 && log.x > canvas.width + 50) log.x = -log.w - 50;
+                else if (log.speed < 0 && log.x + log.w < -50) log.x = canvas.width + 50;
 
-                if (frogRect.left < log.x + log.width && frogRect.right > log.x && frogRect.top < log.y + log.height && frogRect.bottom > log.y) {
-                    onLog = true;
-                    frog.x += log.speed; // Move frog with log
+                if (!frog.isJumping) {
+                    if (frogRect.left < log.x + log.w && frogRect.right > log.x && 
+                        frogRect.top < log.y + log.h && frogRect.bottom > log.y) {
+                        onLog = true;
+                        // Move frog with log
+                        frog.x += log.speed;
+                        frog.targetX += log.speed;
+                        // Update gridX logically based on visual position roughly
+                        frog.gridX = Math.round(frog.x / GRID);
+                    }
                 }
             });
 
-            // Water Collision
-            if (frog.y < 6 * GRID && frog.y > 0) {
-                if (!onLog) death();
+            // Water Death
+            if (!frog.isJumping && frog.gridY >= WATER_START && frog.gridY <= WATER_END && !onLog) {
+                triggerDeath('water');
             }
 
-            // Check Off-screen from log riding
-            if (frog.x < 0 || frog.x + frog.width > canvas.width) {
-                death();
+            // Screen Bounds death (carried off screen by log)
+            if (frog.x < -GRID/2 || frog.x > canvas.width - GRID/2) {
+                triggerDeath('water');
             }
 
-            // Goal Collision (Row 0)
-            if (frog.y === 0) {
-                let slot = Math.floor(frog.x / (GRID * 2));
-                if (slot >= 0 && slot < 5 && !goals[slot]) {
-                    goals[slot] = true;
-                    score += 50;
-                    resetFrog();
-                    if (goals.every(g => g)) {
-                        score += 1000;
-                        goals = [false, false, false, false, false];
-                        // Speed up level? Maybe later.
+            // Goals (Row 0 or 1 depending on layout, let's say Row 1 is goals)
+            if (frog.gridY === 1 && !frog.isJumping) {
+                // Goal slots are at even gridX positions (0, 2, 4, 6, 8, 10)
+                let slotIndex = frog.gridX / 2;
+                if (Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < 6) {
+                    if (!goals[slotIndex]) {
+                        goals[slotIndex] = true;
+                        score += 100;
+                        createParticles(frog.x + GRID/2, frog.y + GRID/2, 'var(--neon-green)', 50, false);
+                        document.getElementById('scoreEl').textContent = `SCORE: ${score}`;
+                        
+                        if (goals.every(g => g)) {
+                            score += 1000;
+                            goals.fill(false);
+                            document.getElementById('scoreEl').textContent = `SCORE: ${score}`;
+                        }
+                        resetFrog();
+                    } else {
+                        // Landed in filled goal
+                        triggerDeath('car'); 
                     }
                 } else {
-                    death(); // Hit wall or already filled slot
+                    // Hit the wall between goals
+                    triggerDeath('car');
                 }
-                updateHUD();
             }
         }
 
         function draw() {
-            // Background areas
-            ctx.fillStyle = 'var(--safe-color)'; ctx.fillRect(0, 11*GRID, canvas.width, GRID); // Start
-            ctx.fillStyle = 'var(--road-color)'; ctx.fillRect(0, 6*GRID, canvas.width, 5*GRID); // Road
-            ctx.fillStyle = 'var(--safe-color)'; ctx.fillRect(0, 5*GRID, canvas.width, GRID); // Median
-            ctx.fillStyle = 'var(--water-color)'; ctx.fillRect(0, GRID, canvas.width, 4*GRID); // Water
-            ctx.fillStyle = '#222'; ctx.fillRect(0, 0, canvas.width, GRID); // Goal area
-
-            // Draw Goals
-            for(let i=0; i<5; i++) {
-                ctx.fillStyle = goals[i] ? 'var(--player-color)' : '#000';
-                ctx.fillRect(i * GRID * 2 + GRID/2, 5, GRID, GRID-10);
+            ctx.save();
+            if (screenShake > 0) {
+                ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
             }
 
-            // Cars
-            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--car-color)'; ctx.fillStyle = 'var(--car-color)';
-            cars.forEach(car => {
-                ctx.fillRect(car.x, car.y + 5, car.width, car.height);
-            });
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Logs
-            ctx.shadowColor = 'var(--log-color)'; ctx.fillStyle = 'var(--log-color)';
-            logs.forEach(log => {
-                ctx.fillRect(log.x, log.y + 5, log.width, log.height);
-            });
-
-            // Frog
-            ctx.shadowColor = 'var(--player-color)'; ctx.fillStyle = 'var(--player-color)';
-            ctx.fillRect(frog.x + 5, frog.y + 5, frog.width - 10, frog.height - 10);
+            // Draw Base Areas
+            // Water
+            ctx.fillStyle = 'var(--water-deep)';
+            ctx.fillRect(0, WATER_START*GRID, canvas.width, (WATER_END - WATER_START + 1)*GRID);
             
-            ctx.shadowBlur = 0;
+            // Animated water lines
+            ctx.strokeStyle = 'var(--water-light)';
+            ctx.lineWidth = 2;
+            for(let y=WATER_START*GRID + 10; y<(WATER_END+1)*GRID; y+=15) {
+                let offset = Math.sin(frameCount*0.05 + y) * 10;
+                ctx.beginPath();
+                ctx.moveTo(-20 + offset, y);
+                ctx.lineTo(canvas.width + 20 + offset, y);
+                ctx.stroke();
+            }
+
+            // Road
+            ctx.fillStyle = 'var(--road-dark)';
+            ctx.fillRect(0, ROAD_START*GRID, canvas.width, (ROAD_END - ROAD_START + 1)*GRID);
+            
+            // Road lines
+            ctx.fillStyle = 'var(--road-line)';
+            ctx.globalAlpha = 0.5;
+            for (let r=ROAD_START+1; r<=ROAD_END; r++) {
+                let y = r*GRID;
+                for(let x = (frameCount*2) % 40; x < canvas.width; x+=40) {
+                    ctx.fillRect(x - 40, y - 2, 20, 4);
+                }
+            }
+            ctx.globalAlpha = 1;
+
+            // Safe Zones (Start, Middle, End)
+            ctx.fillStyle = '#0a1520';
+            ctx.fillRect(0, (ROWS-1)*GRID, canvas.width, GRID); // Start
+            ctx.fillRect(0, (WATER_END+1)*GRID, canvas.width, GRID); // Middle
+            
+            // Goal Area
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, 2*GRID);
+            
+            // Goals
+            for(let i=0; i<6; i++) {
+                let gx = i * GRID * 2;
+                let gy = GRID;
+                ctx.fillStyle = goals[i] ? 'var(--neon-green)' : '#222';
+                ctx.fillRect(gx + 5, gy + 5, GRID - 10, GRID - 10);
+                
+                // Tech border
+                ctx.strokeStyle = 'var(--neon-blue)'; ctx.lineWidth = 2;
+                ctx.strokeRect(gx, gy, GRID, GRID);
+                ctx.fillStyle = '#111'; // Wall block between
+                if(i < 5) ctx.fillRect(gx + GRID, gy, GRID, GRID);
+            }
+
+            // Barges
+            logs.forEach(log => {
+                ctx.fillStyle = '#112233';
+                ctx.fillRect(log.x, log.y + 10, log.w, log.h - 20);
+                
+                // Glow edges
+                ctx.strokeStyle = 'var(--neon-blue)'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(log.x, log.y+10); ctx.lineTo(log.x+log.w, log.y+10); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(log.x, log.y+log.h-10); ctx.lineTo(log.x+log.w, log.y+log.h-10); ctx.stroke();
+                
+                // Thruster
+                ctx.fillStyle = 'rgba(0, 243, 255, ' + (0.5 + Math.sin(frameCount*0.2)*0.5) + ')';
+                if (log.speed > 0) ctx.fillRect(log.x - 5, log.y + log.h/2 - 5, 10, 10);
+                else ctx.fillRect(log.x + log.w - 5, log.y + log.h/2 - 5, 10, 10);
+            });
+
+            // Cars
+            cars.forEach(car => {
+                // Body
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(car.x, car.y + 5, car.w, car.h - 10);
+                
+                // Neon Trim
+                ctx.strokeStyle = car.color; ctx.lineWidth = 2;
+                ctx.strokeRect(car.x, car.y + 5, car.w, car.h - 10);
+                
+                // Headlights
+                let grad = ctx.createLinearGradient(
+                    car.speed > 0 ? car.x + car.w : car.x, 0,
+                    car.speed > 0 ? car.x + car.w + 40 : car.x - 40, 0
+                );
+                grad.addColorStop(0, car.color);
+                grad.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = grad;
+                ctx.globalAlpha = 0.6;
+                if (car.speed > 0) {
+                    ctx.fillRect(car.x + car.w, car.y + 5, 40, car.h - 10);
+                } else {
+                    ctx.fillRect(car.x - 40, car.y + 5, 40, car.h - 10);
+                }
+                ctx.globalAlpha = 1;
+                
+                // Taillight trail
+                ctx.fillStyle = car.color;
+                if (car.speed > 0) {
+                    for(let i=1; i<=3; i++) {
+                        ctx.globalAlpha = 1 - (i/4);
+                        ctx.fillRect(car.x - i*15, car.y + car.h/2 - 2, 10, 4);
+                    }
+                } else {
+                    for(let i=1; i<=3; i++) {
+                        ctx.globalAlpha = 1 - (i/4);
+                        ctx.fillRect(car.x + car.w + i*15 - 10, car.y + car.h/2 - 2, 10, 4);
+                    }
+                }
+                ctx.globalAlpha = 1;
+            });
+
+            // Player (Cyber Frog)
+            if (!frog.dead) {
+                let px = frog.x + GRID/2;
+                let py = frog.y + GRID/2;
+                
+                // Jump arc scaling
+                let scale = 1;
+                if (frog.isJumping) {
+                    let t = frog.jumpTimer / frog.maxJumpTimer;
+                    scale = 1 + Math.sin(t * Math.PI) * 0.4;
+                }
+
+                ctx.translate(px, py);
+                // Rotate based on direction
+                let angle = 0;
+                if (frog.dir === 'right') angle = Math.PI/2;
+                else if (frog.dir === 'left') angle = -Math.PI/2;
+                else if (frog.dir === 'down') angle = Math.PI;
+                ctx.rotate(angle);
+                ctx.scale(scale, scale);
+
+                // Draw high-tech frog shape
+                ctx.fillStyle = '#0a0a0a';
+                ctx.beginPath();
+                ctx.moveTo(0, -15);
+                ctx.lineTo(12, 10);
+                ctx.lineTo(0, 5);
+                ctx.lineTo(-12, 10);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = 'var(--neon-green)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Core glow
+                ctx.fillStyle = 'var(--neon-green)';
+                ctx.beginPath(); ctx.arc(0, -2, 4, 0, Math.PI*2); ctx.fill();
+
+                ctx.scale(1/scale, 1/scale);
+                ctx.rotate(-angle);
+                ctx.translate(-px, -py);
+            }
+
+            // Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / p.maxLife;
+                let size = p.isSplash ? 4 + (p.maxLife - p.life)*0.2 : 4;
+                ctx.fillRect(p.x - size/2, p.y - size/2, size, size);
+            });
+            ctx.globalAlpha = 1;
+
+            ctx.restore();
         }
 
-        function gameLoop() {
-            if(!isGameRunning) return;
+        function loop() {
+            if(!isRunning) return;
             update();
             draw();
-            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(loop);
         }
 
         // Input
         window.addEventListener('keydown', e => {
-            if(!isGameRunning) return;
-            if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) {
+            if(!isRunning) return;
+            if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].includes(e.key)) {
                 e.preventDefault();
-                if(e.code === 'ArrowUp') moveFrog(0, -1);
-                if(e.code === 'ArrowDown') moveFrog(0, 1);
-                if(e.code === 'ArrowLeft') moveFrog(-1, 0);
-                if(e.code === 'ArrowRight') moveFrog(1, 0);
+                if(e.key === 'ArrowUp' || e.key === 'w') moveFrog(0, -1, 'up');
+                if(e.key === 'ArrowDown' || e.key === 's') moveFrog(0, 1, 'down');
+                if(e.key === 'ArrowLeft' || e.key === 'a') moveFrog(-1, 0, 'left');
+                if(e.key === 'ArrowRight' || e.key === 'd') moveFrog(1, 0, 'right');
             }
         });
 
-        // Touch buttons
-        const dirs = { 'up': [0, -1], 'down': [0, 1], 'left': [-1, 0], 'right': [1, 0] };
-        for(let id in dirs) {
-            document.getElementById(id).addEventListener('touchstart', e => {
-                e.preventDefault();
-                if(isGameRunning) moveFrog(dirs[id][0], dirs[id][1]);
-            });
+        // Touch Input
+        const bU = document.getElementById('btn-up');
+        const bD = document.getElementById('btn-down');
+        const bL = document.getElementById('btn-left');
+        const bR = document.getElementById('btn-right');
+        
+        bU.addEventListener('touchstart', e => { e.preventDefault(); if(isRunning) moveFrog(0, -1, 'up'); });
+        bD.addEventListener('touchstart', e => { e.preventDefault(); if(isRunning) moveFrog(0, 1, 'down'); });
+        bL.addEventListener('touchstart', e => { e.preventDefault(); if(isRunning) moveFrog(-1, 0, 'left'); });
+        bR.addEventListener('touchstart', e => { e.preventDefault(); if(isRunning) moveFrog(1, 0, 'right'); });
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            
+            score = 0; lives = 3; frameCount = 0;
+            document.getElementById('scoreEl').textContent = 'SCORE: 0';
+            document.getElementById('livesEl').textContent = 'LIVES: 3';
+            
+            particles = [];
+            goals.fill(false);
+            
+            buildLevel();
+            resetFrog();
+            
+            isRunning = true;
+            loop();
         }
 
-        document.getElementById('start-btn').addEventListener('click', () => {
-            startScreen.classList.add('hidden');
-            initGame();
-        });
-        document.getElementById('restart-btn').addEventListener('click', () => {
-            gameOverScreen.classList.add('hidden');
-            initGame();
-        });
+        function gameOver() {
+            isRunning = false;
+            document.getElementById('final-stats').textContent = `SCORE: ${score}`;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
     </script>
 </body>
 </html>

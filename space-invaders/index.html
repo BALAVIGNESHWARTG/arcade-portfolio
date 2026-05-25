@@ -340,37 +340,37 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Player
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = player.color;
+            
+            
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.width, player.height);
             ctx.fillRect(player.x + 20, player.y - 10, 10, 10); // Ship nose
 
             // Aliens
-            ctx.shadowColor = '#ff00ff';
+            
             ctx.fillStyle = '#ff00ff';
             aliens.forEach(a => {
                 if(a.alive) ctx.fillRect(a.x, a.y, a.width, a.height);
             });
 
             // Bullets
-            ctx.shadowColor = '#39ff14';
+            
             ctx.fillStyle = '#39ff14';
             bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
-            ctx.shadowColor = '#ff3333';
+            
             ctx.fillStyle = '#ff3333';
             alienBullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
             // Particles
             particles.forEach(p => {
-                ctx.shadowColor = p.color;
+                
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = p.life;
                 ctx.fillRect(p.x, p.y, 3, 3);
             });
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
+            
         }
 
         function gameLoop() {

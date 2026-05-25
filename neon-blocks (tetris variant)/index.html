@@ -526,8 +526,8 @@
                 row.forEach((value, x) => {
                     if (value !== 0) {
                         ctx.fillStyle = COLORS[value];
-                        ctx.shadowBlur = 10;
-                        ctx.shadowColor = COLORS[value];
+                        
+                        
                         ctx.fillRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
                         
                         // Inner detail
@@ -536,7 +536,7 @@
                     }
                 });
             });
-            ctx.shadowBlur = 0;
+            
         }
 
         function drawBuffer() {
@@ -547,15 +547,15 @@
                     const color = COLORS[gridStateBuffer[i]];
                     
                     ctx.fillStyle = color;
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = color;
+                    
+                    
                     ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
                     
                     ctx.fillStyle = "rgba(0,0,0,0.2)";
                     ctx.fillRect(x * BLOCK_SIZE + 5, y * BLOCK_SIZE + 5, BLOCK_SIZE - 10, BLOCK_SIZE - 10);
                 }
             }
-            ctx.shadowBlur = 0;
+            
         }
 
         function draw() {

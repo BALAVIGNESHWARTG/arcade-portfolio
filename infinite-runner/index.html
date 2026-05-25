@@ -435,8 +435,8 @@
             chunkBuffer.forEach(chunk => {
                 if (chunk.hasHazardBottom) {
                     ctx.fillStyle = '#ff0000';
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = '#ff0000';
+                    
+                    
                     ctx.beginPath();
                     ctx.moveTo(chunk.x, GAME_HEIGHT - 10);
                     ctx.lineTo(chunk.x + CHUNK_SIZE/2, GAME_HEIGHT - 50);
@@ -445,8 +445,8 @@
                 }
                 if (chunk.hasHazardTop) {
                     ctx.fillStyle = '#ff0000';
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = '#ff0000';
+                    
+                    
                     ctx.beginPath();
                     ctx.moveTo(chunk.x, 10);
                     ctx.lineTo(chunk.x + CHUNK_SIZE/2, 50);
@@ -456,7 +456,7 @@
             });
 
             // Draw Player Trail
-            ctx.shadowBlur = 0;
+            
             ctx.strokeStyle = player.color;
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -474,8 +474,8 @@
             ctx.rotate(gameState.gravityTransition * Math.PI);
             
             ctx.fillStyle = player.color;
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = player.color;
+            
+            
             ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
             
             // Eye detail

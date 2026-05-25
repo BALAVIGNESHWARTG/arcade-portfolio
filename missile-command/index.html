@@ -265,23 +265,23 @@
             ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
 
             // Draw Cities
-            ctx.shadowBlur = 10;
+            
             cities.forEach(c => {
                 if (c.alive) {
-                    ctx.shadowColor = 'var(--city-color)';
+                    
                     ctx.fillStyle = 'var(--city-color)';
                     ctx.fillRect(c.x, c.y, c.w, c.h);
                     ctx.fillRect(c.x + 10, c.y - 10, 20, 10);
                     ctx.fillRect(c.x + 40, c.y - 15, 10, 15);
                 } else {
-                    ctx.shadowColor = '#555';
+                    
                     ctx.fillStyle = '#333';
                     ctx.fillRect(c.x, c.y + 10, c.w, 10);
                 }
             });
 
             // Draw Silos (Turrets)
-            ctx.shadowColor = 'var(--player-missile)';
+            
             ctx.fillStyle = 'var(--player-missile)';
             ctx.beginPath();
             ctx.moveTo(canvas.width/2 - 20, canvas.height - 20);
@@ -302,7 +302,7 @@
             // Draw Explosions
             ctx.globalCompositeOperation = 'screen';
             explosions.forEach(exp => {
-                ctx.shadowColor = exp.color;
+                
                 ctx.fillStyle = exp.color;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI*2);
@@ -322,7 +322,7 @@
                 ctx.fillRect(p.x, p.y, 2, 2);
             });
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
+            
         }
 
         function loop() {

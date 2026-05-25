@@ -314,14 +314,14 @@
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = Math.max(0, p.life);
-                ctx.shadowBlur = 10; ctx.shadowColor = p.color;
+                 
                 ctx.fillRect(p.x, p.y, 4, 4);
             });
             ctx.globalAlpha = 1;
 
             // Bullets
             ctx.fillStyle = 'var(--bullet-color)';
-            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--bullet-color)';
+             
             bullets.forEach(b => {
                 ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
             });
@@ -330,7 +330,7 @@
             ctx.lineWidth = 2;
             enemies.forEach(e => {
                 ctx.strokeStyle = 'var(--enemy-color)';
-                ctx.shadowBlur = 15; ctx.shadowColor = 'var(--enemy-color)';
+                 
                 ctx.beginPath();
                 // Draw different shapes based on type
                 if (e.hp > 1) {
@@ -350,7 +350,7 @@
             ctx.strokeStyle = 'var(--player-color)';
             ctx.fillStyle = '#000';
             ctx.lineWidth = 3;
-            ctx.shadowBlur = 20; ctx.shadowColor = 'var(--player-color)';
+             
             
             // Aim indicator
             if (mouseAim.firing || (fireJoy.active && Math.hypot(fireJoy.x, fireJoy.y) > 0.2)) {
@@ -375,7 +375,7 @@
             ctx.beginPath(); ctx.arc(player.x, player.y, player.radius/2, 0, Math.PI*2); ctx.fill();
 
             ctx.globalCompositeOperation = 'source-over';
-            ctx.shadowBlur = 0;
+            
         }
 
         function loop() {

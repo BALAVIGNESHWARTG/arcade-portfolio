@@ -264,22 +264,22 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Paddle
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = paddle.color;
+            
+            
             ctx.fillStyle = paddle.color;
             ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
 
             // Blocks
             blocks.forEach(b => {
                 if(b.status === 1) {
-                    ctx.shadowColor = b.color;
+                    
                     ctx.fillStyle = b.color;
                     ctx.fillRect(b.x, b.y, b.width, b.height);
                 }
             });
 
             // Balls
-            ctx.shadowColor = '#ff00ff';
+            
             ctx.fillStyle = '#ff00ff';
             balls.forEach(b => {
                 ctx.beginPath();
@@ -288,7 +288,7 @@
             });
 
             // Powerups
-            ctx.shadowColor = '#fff';
+            
             ctx.fillStyle = '#fff';
             powerups.forEach(p => {
                 ctx.beginPath();
@@ -300,13 +300,13 @@
 
             // Particles
             particles.forEach(p => {
-                ctx.shadowColor = p.color;
+                
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = p.life;
                 ctx.fillRect(p.x, p.y, 3, 3);
             });
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
+            
         }
 
         function gameLoop() {

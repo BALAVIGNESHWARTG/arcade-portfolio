@@ -318,8 +318,8 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Draw Ship
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#00f3ff';
+            
+            
             ctx.strokeStyle = '#00f3ff';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -330,7 +330,7 @@
             ctx.stroke();
 
             // Draw Asteroids
-            ctx.shadowColor = '#ff00ff';
+            
             ctx.strokeStyle = '#ff00ff';
             asteroids.forEach(a => {
                 ctx.beginPath();
@@ -346,7 +346,7 @@
             });
 
             // Draw Bullets
-            ctx.shadowColor = '#39ff14';
+            
             ctx.fillStyle = '#39ff14';
             bullets.forEach(b => {
                 ctx.beginPath();
@@ -356,13 +356,13 @@
 
             // Draw Particles
             particles.forEach(p => {
-                ctx.shadowColor = p.color;
+                
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = p.life;
                 ctx.fillRect(p.x, p.y, 2, 2);
             });
             ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
+            
         }
 
         function gameLoop() {

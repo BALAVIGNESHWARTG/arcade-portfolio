@@ -590,15 +590,15 @@
             ctx.fillStyle = COLORS[val] || '#fff';
             
             if(val >= 8) {
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = ctx.fillStyle;
+                
+                
             } else {
-                ctx.shadowBlur = 0;
+                
             }
 
             drawRoundedRect(0, 0, TILE_SIZE, TILE_SIZE, RADIUS);
             
-            ctx.shadowBlur = 0;
+            
 
             // Set Text Color based on Brightness
             if (val === 2 || val === 4 || val === 128 || val === 256 || val === 512 || val === 1024 || val === 32768 || val === 131072) {
@@ -607,7 +607,7 @@
                 ctx.fillStyle = '#fff';
             }
 
-            if(val === 2048) { ctx.fillStyle = '#d4af37'; ctx.shadowColor='#d4af37'; ctx.shadowBlur=10; }
+            if(val === 2048) { ctx.fillStyle = '#d4af37';   }
 
             // Dynamic font size for large numbers
             let fontSize = 24;

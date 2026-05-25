@@ -353,13 +353,13 @@
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = Math.max(0, p.life);
-                ctx.shadowBlur = 5; ctx.shadowColor = p.color;
+                 
                 ctx.fillRect(p.x, p.y, 4, 4);
             });
             ctx.globalAlpha = 1;
 
             // Powerups
-            ctx.shadowBlur = 10; ctx.shadowColor = '#00ff00';
+             
             ctx.fillStyle = '#00ff00';
             powerups.forEach(p => {
                 ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI*2); ctx.fill();
@@ -368,14 +368,14 @@
 
             // Player Bullets
             ctx.fillStyle = 'var(--bullet-color)';
-            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--bullet-color)';
+             
             pBullets.forEach(b => {
                 ctx.fillRect(b.x - b.size/2, b.y - b.size*2, b.size, b.size*3);
             });
 
             // Enemy Bullets
             ctx.fillStyle = '#fff';
-            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--enemy-bullet)';
+             
             eBullets.forEach(b => {
                 ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
             });
@@ -385,7 +385,7 @@
                 ctx.strokeStyle = 'var(--enemy-color)';
                 ctx.fillStyle = '#000';
                 ctx.lineWidth = 2;
-                ctx.shadowBlur = 15; ctx.shadowColor = 'var(--enemy-color)';
+                 
                 
                 ctx.beginPath();
                 if (e.type === 'bomber') {
@@ -409,7 +409,7 @@
 
             // Player
             if (player.invuln % 10 < 5) {
-                ctx.shadowBlur = 15; ctx.shadowColor = 'var(--player-color)';
+                 
                 ctx.strokeStyle = 'var(--player-color)';
                 ctx.fillStyle = '#000';
                 ctx.lineWidth = 2;
@@ -425,7 +425,7 @@
                 // Engine thrust
                 if (keys.w || touchUp) {
                     ctx.fillStyle = '#ffaa00';
-                    ctx.shadowColor = '#ffaa00';
+                    
                     ctx.beginPath();
                     ctx.moveTo(player.x - 5, player.y + 8);
                     ctx.lineTo(player.x, player.y + 20 + Math.random()*5);
@@ -435,7 +435,7 @@
             }
 
             ctx.globalCompositeOperation = 'source-over';
-            ctx.shadowBlur = 0;
+            
         }
 
         function loop() {

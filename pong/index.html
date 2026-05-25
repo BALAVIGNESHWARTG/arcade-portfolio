@@ -355,23 +355,23 @@
             ctx.setLineDash([]);
 
             // Draw paddles
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#00f3ff";
+            
+            
             ctx.fillStyle = "#00f3ff";
             ctx.fillRect(player.x, player.y, player.width, player.height);
 
-            ctx.shadowColor = "#ff0044";
+            
             ctx.fillStyle = "#ff0044";
             ctx.fillRect(ai.x, ai.y, ai.width, ai.height);
 
             // Draw ball
-            ctx.shadowColor = "#ff00ff";
+            
             ctx.fillStyle = "#ff00ff";
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.shadowBlur = 0;
+            
         }
 
         function gameLoop() {

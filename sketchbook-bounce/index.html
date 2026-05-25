@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sketchbook Bounce</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@700&display=swap');
+
+        :root {
+            --paper-bg: #f9f9f4;
+            --line-color: #8db0c7;
+            --margin-color: #d88e8e;
+            --pencil-color: #333;
+            --plat-normal: #5ca03e;
+            --plat-broken: #8c5936;
+            --plat-moving: #4477aa;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #222; color: var(--pencil-color);
+            font-family: 'Caveat', cursive; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 500px; max-height: 800px;
+            background-color: var(--paper-bg);
+            /* Notebook paper pattern */
+            background-image: 
+                linear-gradient(transparent 95%, var(--line-color) 100%);
+            background-size: 100% 30px;
+            border-radius: 5px;
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        /* Red margin line */
+        #game-container::before {
+            content: ''; position: absolute; top: 0; left: 50px; width: 2px; height: 100%;
+            background: var(--margin-color); z-index: 1; pointer-events: none; opacity: 0.8;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 10px; left: 60px; right: 20px; display: flex; justify-content: space-between;
+            font-size: 36px; color: var(--pencil-color); z-index: 10; pointer-events: none;
+            text-shadow: 1px 1px 0 rgba(255,255,255,0.8);
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95); border: 2px dashed var(--pencil-color); padding: 30px;
+            text-align: center; box-shadow: 5px 5px 15px rgba(0,0,0,0.2); z-index: 30;
+            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 400px;
+        }
+        h1 { margin-top: 0; font-size: 50px; line-height: 1; margin-bottom: 10px; }
+        p { font-size: 24px; margin-bottom: 30px; line-height: 1.2; }
+        button {
+            background: transparent; color: var(--pencil-color); border: 2px solid var(--pencil-color);
+            padding: 10px 20px; font-family: 'Caveat', cursive; font-size: 28px; font-weight: bold;
+            cursor: pointer; transition: 0.2s; border-radius: 15px;
+            box-shadow: 3px 3px 0 var(--pencil-color);
+        }
+        button:hover { background: var(--pencil-color); color: #fff; box-shadow: 1px 1px 0 var(--pencil-color); transform: translate(2px, 2px); }
+        .hidden { display: none !important; }
+
+        /* Mobile Controls Overlay (Invisible zones) */
+        #touch-zones {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; z-index: 20;
+        }
+        .zone { flex: 1; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="hud" id="scoreEl">0</div>
+
+        <div id="touch-zones">
+            <div class="zone" id="zone-left"></div>
+            <div class="zone" id="zone-right"></div>
+        </div>
+
+        <div id="start-screen" class="modal">
+            <h1>Sketch Bounce</h1>
+            <p>Keep going up!<br><br>Desktop: Arrow Keys / A D<br>Mobile: Tap Left/Right halves of screen.</p>
+            <button id="start-btn">Draw!</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1>Oops.</h1>
+            <p id="final-stats">Height: 0</p>
+            <button id="restart-btn">Erase & Retry</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        // Game Constants
+        const GRAVITY = 0.4;
+        const JUMP = -10;
+        const SPRING_JUMP = -18;
+        
+        let isRunning = false;
+        let score = 0;
+        let cameraY = 0;
+        let frameCount = 0;
+
+        // Player
+        let player = {
+            x: 250, y: 400, radius: 15, vx: 0, vy: 0, speed: 6, dead: false
+        };
+
+        // Inputs
+        let keys = { left: false, right: false };
+
+        // Entities
+        let platforms = [];
+        let particles = [];
+
+        function spawnPlatform(y) {
+            let type = 'normal';
+            let r = Math.random();
+            if (r > 0.8 && score > 1000) type = 'moving';
+            else if (r > 0.6) type = 'broken';
+
+            let plat = {
+                x: Math.random() * (width - 60),
+                y: y, w: 60, h: 15, type: type,
+                vx: type === 'moving' ? (Math.random() > 0.5 ? 2 : -2) : 0,
+                hasSpring: Math.random() > 0.95 && type === 'normal'
+            };
+            platforms.push(plat);
+        }
+
+        function buildInitialLevel() {
+            platforms = [];
+            // Base platform
+            platforms.push({ x: width/2 - 30, y: height - 50, w: 60, h: 15, type: 'normal' });
+            
+            let y = height - 100;
+            while(y > -height) {
+                spawnPlatform(y);
+                y -= Math.random() * 80 + 40;
+            }
+        }
+
+        // Sketchy drawing helper
+        function drawSketchyRect(ctx, x, y, w, h, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // Jittery lines
+            ctx.moveTo(x + Math.random()*2, y + Math.random()*2);
+            ctx.lineTo(x + w - Math.random()*2, y + Math.random()*2);
+            ctx.lineTo(x + w - Math.random()*2, y + h - Math.random()*2);
+            ctx.lineTo(x + Math.random()*2, y + h - Math.random()*2);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Scribble fill
+            ctx.beginPath();
+            for(let i=0; i<w; i+=8) {
+                ctx.moveTo(x + i, y + 2);
+                ctx.lineTo(x + i + 4, y + h - 2);
+            }
+            ctx.stroke();
+        }
+
+        function createBreakParticles(plat) {
+            for(let i=0; i<10; i++) {
+                particles.push({
+                    x: plat.x + Math.random()*plat.w, y: plat.y + 5,
+                    vx: (Math.random()-0.5)*5, vy: Math.random()*5,
+                    life: 30
+                });
+            }
+        }
+
+        function update() {
+            frameCount++;
+            
+            if (player.dead) {
+                player.vy += GRAVITY;
+                player.y += player.vy;
+                if(player.y - cameraY > height) gameOver();
+                return;
+            }
+
+            // Input
+            if (keys.left) player.vx = -player.speed;
+            else if (keys.right) player.vx = player.speed;
+            else player.vx = 0;
+
+            // Physics
+            player.x += player.vx;
+            player.vy += GRAVITY;
+            player.y += player.vy;
+
+            // Screen Wrap
+            if (player.x > width) player.x = 0;
+            else if (player.x < 0) player.x = width;
+
+            // Camera follow (only upwards)
+            if (player.y < cameraY + height / 2) {
+                let diff = (cameraY + height / 2) - player.y;
+                cameraY -= diff;
+                score += Math.floor(diff);
+                document.getElementById('scoreEl').textContent = score;
+            }
+
+            // Collision (only when falling)
+            if (player.vy > 0) {
+                for (let i=0; i<platforms.length; i++) {
+                    let p = platforms[i];
+                    if (player.y + player.radius >= p.y && 
+                        player.y + player.radius <= p.y + p.h + 10 && 
+                        player.x + player.radius > p.x && 
+                        player.x - player.radius < p.x + p.w) {
+                        
+                        // Hit spring
+                        if (p.hasSpring && player.x > p.x + 10 && player.x < p.x + 30) {
+                            player.vy = SPRING_JUMP;
+                        } else {
+                            // Hit platform
+                            if (p.type === 'broken') {
+                                createBreakParticles(p);
+                                platforms.splice(i, 1);
+                                i--;
+                            } else {
+                                player.vy = JUMP;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Update Platforms
+            let highestPlatY = cameraY + height;
+            for(let i=platforms.length-1; i>=0; i--) {
+                let p = platforms[i];
+                if (p.y < highestPlatY) highestPlatY = p.y;
+                
+                if (p.type === 'moving') {
+                    p.x += p.vx;
+                    if (p.x < 0 || p.x + p.w > width) p.vx *= -1;
+                }
+
+                // Cleanup offscreen (bottom)
+                if (p.y > cameraY + height + 50) {
+                    platforms.splice(i, 1);
+                }
+            }
+
+            // Spawn new platforms above
+            while (highestPlatY > cameraY - 100) {
+                spawnPlatform(highestPlatY - (Math.random()*80 + 40));
+                highestPlatY = platforms[platforms.length-1].y;
+            }
+
+            // Death by falling off screen
+            if (player.y > cameraY + height) {
+                player.dead = true;
+                player.vy = -5; // Small hop
+            }
+
+            // Particles
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.vy += GRAVITY; p.life--;
+                if(p.life <= 0) particles.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            ctx.save();
+            ctx.translate(0, -cameraY);
+
+            // Draw Platforms
+            platforms.forEach(p => {
+                if (p.type === 'normal') drawSketchyRect(ctx, p.x, p.y, p.w, p.h, 'var(--plat-normal)');
+                else if (p.type === 'broken') drawSketchyRect(ctx, p.x, p.y, p.w, p.h, 'var(--plat-broken)');
+                else if (p.type === 'moving') drawSketchyRect(ctx, p.x, p.y, p.w, p.h, 'var(--plat-moving)');
+
+                if (p.hasSpring) {
+                    ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x + 20, p.y);
+                    ctx.lineTo(p.x + 15, p.y - 5);
+                    ctx.lineTo(p.x + 25, p.y - 10);
+                    ctx.lineTo(p.x + 15, p.y - 15);
+                    ctx.lineTo(p.x + 20, p.y - 20);
+                    ctx.stroke();
+                }
+            });
+
+            // Particles
+            ctx.fillStyle = 'var(--plat-broken)';
+            particles.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Draw Player
+            ctx.strokeStyle = 'var(--pencil-color)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            // Body (squash and stretch based on vy)
+            let stretchY = player.radius + Math.abs(player.vy);
+            let stretchX = player.radius - Math.abs(player.vy)*0.3;
+            if(stretchX < 5) stretchX = 5;
+
+            ctx.ellipse(player.x, player.y, stretchX, stretchY, 0, 0, Math.PI*2);
+            ctx.stroke();
+
+            // Face (eyes)
+            ctx.fillStyle = 'var(--pencil-color)';
+            ctx.beginPath(); ctx.arc(player.x - 5, player.y - 5, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(player.x + 5, player.y - 5, 2, 0, Math.PI*2); ctx.fill();
+            
+            // Snout / nose
+            ctx.beginPath(); ctx.moveTo(player.x - 5 + (player.vx), player.y + 5); 
+            ctx.lineTo(player.x + 5 + (player.vx), player.y + 5); ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // Input Setup
+        window.addEventListener('keydown', e => {
+            if(e.key.toLowerCase() === 'a' || e.key === 'ArrowLeft') keys.left = true;
+            if(e.key.toLowerCase() === 'd' || e.key === 'ArrowRight') keys.right = true;
+        });
+        window.addEventListener('keyup', e => {
+            if(e.key.toLowerCase() === 'a' || e.key === 'ArrowLeft') keys.left = false;
+            if(e.key.toLowerCase() === 'd' || e.key === 'ArrowRight') keys.right = false;
+        });
+
+        // Touch zones
+        document.getElementById('zone-left').addEventListener('touchstart', e => { e.preventDefault(); keys.left = true; }, {passive: false});
+        document.getElementById('zone-left').addEventListener('touchend', e => { e.preventDefault(); keys.left = false; });
+        document.getElementById('zone-right').addEventListener('touchstart', e => { e.preventDefault(); keys.right = true; }, {passive: false});
+        document.getElementById('zone-right').addEventListener('touchend', e => { e.preventDefault(); keys.right = false; });
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            score = 0; cameraY = 0; frameCount = 0;
+            document.getElementById('scoreEl').textContent = '0';
+            
+            player.x = width/2; player.y = height/2; player.vy = 0; player.vx = 0; player.dead = false;
+            particles = [];
+            
+            buildInitialLevel();
+            isRunning = true;
+            loop();
+        }
+
+        function gameOver() {
+            isRunning = false;
+            document.getElementById('final-stats').textContent = `Height: ${score}`;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

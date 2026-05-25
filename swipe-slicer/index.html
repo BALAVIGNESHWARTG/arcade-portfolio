@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Swipe Slicer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Shojumaru&family=Roboto+Mono:wght@700&display=swap');
+
+        :root {
+            --wood-bg: #8b5a2b;
+            --wood-dark: #5c3a1b;
+            --slice-color: #e0f7fa;
+            --ui-text: #fff;
+            --bomb-color: #222;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #000; color: var(--ui-text);
+            font-family: 'Shojumaru', cursive; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 600px;
+            background-color: var(--wood-bg);
+            /* Procedural wood grain using gradients */
+            background-image: 
+                repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(0,0,0,0.05) 40px, rgba(0,0,0,0.05) 45px),
+                repeating-linear-gradient(0deg, transparent, transparent 100px, rgba(0,0,0,0.1) 100px, rgba(0,0,0,0.1) 105px);
+            overflow: hidden;
+            box-shadow: inset 0 0 50px var(--wood-dark);
+            border: 10px solid var(--wood-dark);
+            border-radius: 10px;
+            cursor: crosshair;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
+
+        .hud {
+            position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between;
+            font-size: 30px; text-shadow: 2px 2px 0 #000, 0 0 10px rgba(0,0,0,0.5); z-index: 10; pointer-events: none;
+        }
+        
+        .lives { color: #ff3333; }
+        
+        #combo-popup {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 50px; color: #ffeb3b; text-shadow: 0 0 20px #ff9800, 2px 2px 0 #000;
+            opacity: 0; pointer-events: none; z-index: 20; transition: opacity 0.5s;
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(92, 58, 27, 0.9); border: 4px solid #fff; padding: 30px;
+            text-align: center; box-shadow: 0 0 40px rgba(0,0,0,0.8); z-index: 30;
+            border-radius: 5px; pointer-events: auto; width: 80%; max-width: 450px;
+        }
+        h1 { color: #ffeb3b; margin-top: 0; font-size: 36px; text-shadow: 2px 2px 0 #000; letter-spacing: 2px; }
+        p { color: #fff; line-height: 1.5; font-size: 14px; font-family: 'Roboto Mono', monospace; margin-bottom: 30px; }
+        button {
+            background: #d32f2f; color: #fff; border: 2px solid #fff;
+            padding: 15px 30px; font-family: 'Shojumaru', cursive; font-size: 20px;
+            cursor: pointer; transition: 0.2s; border-radius: 5px;
+        }
+        button:hover { background: #fff; color: #d32f2f; }
+        .hidden { display: none !important; }
+        
+        /* Juice splatters on background */
+        #splatter-layer {
+            position: absolute; top:0; left:0; width:100%; height:100%; z-index: 2; pointer-events: none; opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="splatter-layer"></canvas>
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="hud">
+            <div id="scoreEl">0</div>
+            <div class="lives" id="livesEl">✖ ✖ ✖</div>
+        </div>
+        
+        <div id="combo-popup">COMBO x3</div>
+
+        <div id="start-screen" class="modal">
+            <h1>SWIPE SLICER</h1>
+            <p>Master the Blade.<br><br>Drag Mouse or Swipe to slice fruits.<br>Do not slice the bombs.<br>Do not let fruits fall.</p>
+            <button id="start-btn">BEGIN</button>
+        </div>
+        
+        <div id="game-over-screen" class="modal hidden">
+            <h1 style="color:#d32f2f;">GAME OVER</h1>
+            <p id="final-stats">SCORE: 0</p>
+            <button id="restart-btn">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const splatterCanvas = document.getElementById('splatter-layer');
+        const sCtx = splatterCanvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
+            splatterCanvas.width = width; splatterCanvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        // Game State
+        const GRAVITY = 0.3;
+        let isRunning = false;
+        let score = 0;
+        let lives = 3;
+        let frameCount = 0;
+        
+        // Slicing Trail
+        let trail = []; // {x, y, age}
+        let isDragging = false;
+        let currentSliceCount = 0; // for combos
+        let sliceTimer = 0;
+
+        // Entities
+        let fruits = [];
+        let particles = [];
+        let halves = [];
+
+        const FRUIT_TYPES = [
+            { name: 'apple', color: '#ff0800', inner: '#fff5e6', r: 35 },
+            { name: 'orange', color: '#ff7f00', inner: '#ffd27f', r: 40 },
+            { name: 'watermelon', color: '#00a800', inner: '#ff3333', r: 50 },
+            { name: 'blueberry', color: '#0033cc', inner: '#809fff', r: 25 },
+            { name: 'bomb', color: '#222', r: 30 }
+        ];
+
+        function spawnWave() {
+            let count = Math.floor(Math.random() * 3) + 1 + Math.floor(score/100);
+            if (count > 5) count = 5;
+
+            for(let i=0; i<count; i++) {
+                let type = FRUIT_TYPES[Math.floor(Math.random() * (FRUIT_TYPES.length - 1))];
+                // 15% chance for bomb if score > 50
+                if (score > 50 && Math.random() < 0.15) {
+                    type = FRUIT_TYPES[4]; // bomb
+                }
+
+                fruits.push({
+                    type: type,
+                    x: Math.random() * (width - 100) + 50,
+                    y: height + 50,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: -(12 + Math.random() * 4),
+                    rotation: 0,
+                    rv: (Math.random() - 0.5) * 0.2,
+                    sliced: false
+                });
+            }
+        }
+
+        function triggerCombo(count) {
+            let popup = document.getElementById('combo-popup');
+            popup.textContent = `COMBO x${count}!`;
+            popup.style.transition = 'none';
+            popup.style.opacity = '1';
+            popup.style.top = '50%';
+            
+            score += count * 2; // bonus points
+            document.getElementById('scoreEl').textContent = score;
+
+            setTimeout(() => {
+                popup.style.transition = 'all 1s';
+                popup.style.opacity = '0';
+                popup.style.top = '40%';
+            }, 50);
+        }
+
+        function createSplatter(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x, y, 
+                    vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15,
+                    life: 40, color: color, size: Math.random()*5 + 2
+                });
+            }
+            // Permanent background splatter
+            sCtx.fillStyle = color;
+            sCtx.globalAlpha = 0.7;
+            for(let i=0; i<3; i++) {
+                sCtx.beginPath();
+                sCtx.arc(x + (Math.random()-0.5)*40, y + (Math.random()-0.5)*40, Math.random()*15+5, 0, Math.PI*2);
+                sCtx.fill();
+            }
+            sCtx.globalAlpha = 1;
+        }
+
+        function sliceEntity(f, idx, sliceVector) {
+            if (f.sliced) return;
+            f.sliced = true;
+
+            if (f.type.name === 'bomb') {
+                createSplatter(f.x, f.y, '#000');
+                lives = 0;
+                updateLivesUI();
+                gameOver();
+                return;
+            }
+
+            score++;
+            document.getElementById('scoreEl').textContent = score;
+            createSplatter(f.x, f.y, f.type.inner);
+            
+            // Generate halves
+            let angle = Math.atan2(sliceVector.dy, sliceVector.dx);
+            
+            halves.push({
+                type: f.type, x: f.x, y: f.y,
+                vx: f.vx - Math.sin(angle)*3, vy: f.vy - Math.cos(angle)*3,
+                rotation: f.rotation, rv: f.rv - 0.1, half: 1
+            });
+            halves.push({
+                type: f.type, x: f.x, y: f.y,
+                vx: f.vx + Math.sin(angle)*3, vy: f.vy + Math.cos(angle)*3,
+                rotation: f.rotation, rv: f.rv + 0.1, half: 2
+            });
+
+            fruits.splice(idx, 1);
+            
+            currentSliceCount++;
+            sliceTimer = 10; // Frames to connect combo
+        }
+
+        function checkLineCircleIntersection(p1, p2, circle) {
+            // Very basic fast distance check to line segment
+            let dx = p2.x - p1.x; let dy = p2.y - p1.y;
+            let l2 = dx*dx + dy*dy;
+            if (l2 === 0) return Math.hypot(p1.x - circle.x, p1.y - circle.y) < circle.type.r;
+            let t = Math.max(0, Math.min(1, ((circle.x - p1.x) * dx + (circle.y - p1.y) * dy) / l2));
+            let projX = p1.x + t * dx; let projY = p1.y + t * dy;
+            return Math.hypot(circle.x - projX, circle.y - projY) < circle.type.r;
+        }
+
+        function updateLivesUI() {
+            let str = '';
+            for(let i=0; i<3; i++) {
+                str += (i < lives) ? '✖ ' : '· ';
+            }
+            document.getElementById('livesEl').textContent = str.trim();
+        }
+
+        function update() {
+            frameCount++;
+
+            // Trail Logic
+            if (!isDragging) {
+                if (trail.length > 0) trail.shift();
+            } else {
+                for(let i=0; i<trail.length; i++) {
+                    trail[i].age++;
+                }
+                trail = trail.filter(t => t.age < 8);
+            }
+
+            // Slicing collision
+            if (trail.length > 1) {
+                let p1 = trail[trail.length - 2];
+                let p2 = trail[trail.length - 1];
+                let sliceVector = { dx: p2.x - p1.x, dy: p2.y - p1.y };
+
+                for(let i=fruits.length-1; i>=0; i--) {
+                    if (checkLineCircleIntersection(p1, p2, fruits[i])) {
+                        sliceEntity(fruits[i], i, sliceVector);
+                    }
+                }
+            }
+
+            // Combo logic
+            if (sliceTimer > 0) {
+                sliceTimer--;
+                if (sliceTimer <= 0 && currentSliceCount > 2) {
+                    triggerCombo(currentSliceCount);
+                    currentSliceCount = 0;
+                }
+            }
+
+            // Fruits
+            if (frameCount % 90 === 0) spawnWave();
+
+            for(let i=fruits.length-1; i>=0; i--) {
+                let f = fruits[i];
+                f.vy += GRAVITY;
+                f.x += f.vx; f.y += f.vy;
+                f.rotation += f.rv;
+
+                // Missed fruit
+                if (f.y > height + 100 && f.vy > 0) {
+                    if (f.type.name !== 'bomb' && lives > 0) {
+                        lives--;
+                        updateLivesUI();
+                        
+                        // Red X animation at bottom
+                        let ui = document.getElementById('livesEl');
+                        ui.style.color = '#fff';
+                        setTimeout(() => { ui.style.color = '#ff3333'; }, 200);
+
+                        if (lives <= 0) gameOver();
+                    }
+                    fruits.splice(i, 1);
+                }
+            }
+
+            // Halves
+            for(let i=halves.length-1; i>=0; i--) {
+                let h = halves[i];
+                h.vy += GRAVITY;
+                h.x += h.vx; h.y += h.vy;
+                h.rotation += h.rv;
+                if (h.y > height + 100) halves.splice(i, 1);
+            }
+
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.vy += GRAVITY;
+                p.x += p.vx; p.y += p.vy;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function drawFruit(ctx, f, isHalf = 0) {
+            ctx.save();
+            ctx.translate(f.x, f.y);
+            ctx.rotate(f.rotation);
+
+            if (f.type.name === 'bomb') {
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0,0,f.type.r,0,Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(-10,-10,f.type.r/3,0,Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(0,-f.type.r); ctx.quadraticCurveTo(20,-f.type.r-20,30,-f.type.r-10); ctx.stroke();
+            } else {
+                if (isHalf === 0) {
+                    // Whole
+                    ctx.fillStyle = f.type.color; ctx.beginPath(); ctx.arc(0,0,f.type.r,0,Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = f.type.inner; ctx.lineWidth=2; ctx.stroke();
+                } else if (isHalf === 1) {
+                    // Left half
+                    ctx.fillStyle = f.type.color; ctx.beginPath(); ctx.arc(0,0,f.type.r,Math.PI/2, Math.PI*1.5); ctx.fill();
+                    ctx.fillStyle = f.type.inner; ctx.beginPath(); ctx.ellipse(-2, 0, f.type.r/3, f.type.r-2, 0, 0, Math.PI*2); ctx.fill();
+                } else if (isHalf === 2) {
+                    // Right half
+                    ctx.fillStyle = f.type.color; ctx.beginPath(); ctx.arc(0,0,f.type.r,-Math.PI/2, Math.PI/2); ctx.fill();
+                    ctx.fillStyle = f.type.inner; ctx.beginPath(); ctx.ellipse(2, 0, f.type.r/3, f.type.r-2, 0, 0, Math.PI*2); ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw Halves
+            halves.forEach(h => drawFruit(ctx, h, h.half));
+
+            // Draw Fruits
+            fruits.forEach(f => drawFruit(ctx, f, 0));
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 40;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            // Draw Trail
+            if (trail.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(trail[0].x, trail[0].y);
+                for(let i=1; i<trail.length; i++) {
+                    ctx.lineTo(trail[i].x, trail[i].y);
+                }
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                // Outer glow
+                ctx.strokeStyle = 'rgba(0, 229, 255, 0.5)';
+                ctx.lineWidth = 15;
+                ctx.stroke();
+                
+                // Inner core
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 6;
+                ctx.stroke();
+            }
+        }
+
+        function loop() {
+            if(!isRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // Input
+        function getPos(e) {
+            let rect = canvas.getBoundingClientRect();
+            if (e.touches) {
+                return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top, age: 0 };
+            }
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top, age: 0 };
+        }
+
+        container.addEventListener('mousedown', e => { isDragging = true; trail = [getPos(e)]; currentSliceCount = 0; });
+        container.addEventListener('mousemove', e => { if (isDragging) trail.push(getPos(e)); });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        
+        container.addEventListener('touchstart', e => { e.preventDefault(); isDragging = true; trail = [getPos(e)]; currentSliceCount = 0; }, {passive: false});
+        container.addEventListener('touchmove', e => { e.preventDefault(); if(isDragging) trail.push(getPos(e)); }, {passive: false});
+        window.addEventListener('touchend', () => { isDragging = false; });
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            score = 0; lives = 3; frameCount = 0;
+            document.getElementById('scoreEl').textContent = '0';
+            updateLivesUI();
+            
+            fruits = []; halves = []; particles = []; trail = [];
+            sCtx.clearRect(0,0,width,height); // clear background splatters
+
+            isRunning = true;
+            loop();
+        }
+
+        function gameOver() {
+            isRunning = false;
+            document.getElementById('final-stats').textContent = `SCORE: ${score}`;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+    </script>
+</body>
+</html>

@@ -314,14 +314,14 @@
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = Math.max(0, p.life);
-                ctx.shadowBlur = 10; ctx.shadowColor = p.color;
+                 
                 ctx.fillRect(p.x, p.y, 4, 4);
             });
             ctx.globalAlpha = 1;
 
             // Bullets
             ctx.fillStyle = 'var(--bullet-color)';
-            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--bullet-color)';
+             
             bullets.forEach(b => {
                 ctx.fillRect(b.x-2, b.y-2, 4, 4);
             });
@@ -332,19 +332,19 @@
                 ctx.fillStyle = '#000';
                 if (e.type === 'grunt') {
                     ctx.strokeStyle = 'var(--grunt-color)';
-                    ctx.shadowBlur = 10; ctx.shadowColor = 'var(--grunt-color)';
+                     
                     ctx.beginPath(); ctx.rect(e.x - e.radius, e.y - e.radius, e.radius*2, e.radius*2);
                     ctx.fill(); ctx.stroke();
                 } else if (e.type === 'hulk') {
                     ctx.strokeStyle = 'var(--hulk-color)';
-                    ctx.shadowBlur = 15; ctx.shadowColor = 'var(--hulk-color)';
+                     
                     ctx.beginPath(); ctx.rect(e.x - e.radius, e.y - e.radius, e.radius*2, e.radius*2);
                     ctx.moveTo(e.x - e.radius, e.y - e.radius); ctx.lineTo(e.x + e.radius, e.y + e.radius);
                     ctx.moveTo(e.x + e.radius, e.y - e.radius); ctx.lineTo(e.x - e.radius, e.y + e.radius);
                     ctx.fill(); ctx.stroke();
                 } else if (e.type === 'brain') {
                     ctx.strokeStyle = 'var(--brain-color)';
-                    ctx.shadowBlur = 15; ctx.shadowColor = 'var(--brain-color)';
+                     
                     ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2);
                     ctx.fill(); ctx.stroke();
                     ctx.beginPath(); ctx.arc(e.x, e.y, e.radius/2, 0, Math.PI*2); ctx.stroke();
@@ -355,7 +355,7 @@
             ctx.strokeStyle = 'var(--player-color)';
             ctx.fillStyle = '#000';
             ctx.lineWidth = 3;
-            ctx.shadowBlur = 20; ctx.shadowColor = 'var(--player-color)';
+             
             
             ctx.beginPath();
             ctx.moveTo(player.x, player.y - player.radius);
@@ -366,7 +366,7 @@
             ctx.fill(); ctx.stroke();
 
             ctx.globalCompositeOperation = 'source-over';
-            ctx.shadowBlur = 0;
+            
         }
 
         function loop() {

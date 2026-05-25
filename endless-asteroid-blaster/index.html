@@ -319,13 +319,13 @@
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = Math.max(0, p.life);
-                ctx.shadowBlur = 5; ctx.shadowColor = p.color;
+                 
                 ctx.fillRect(p.x, p.y, 3, 3);
             });
             ctx.globalAlpha = 1;
 
             // Powerups
-            ctx.shadowBlur = 15; ctx.shadowColor = 'var(--powerup-color)';
+             
             ctx.fillStyle = 'var(--powerup-color)';
             powerups.forEach(p => {
                 if(p.life % 20 > 10) {
@@ -338,7 +338,7 @@
 
             // Bullets
             ctx.fillStyle = 'var(--bullet-color)';
-            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--bullet-color)';
+             
             bullets.forEach(b => {
                 ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
             });
@@ -346,7 +346,7 @@
             // Asteroids
             ctx.strokeStyle = 'var(--asteroid-color)';
             ctx.lineWidth = 2;
-            ctx.shadowBlur = 15; ctx.shadowColor = 'var(--asteroid-color)';
+             
             asteroids.forEach(a => {
                 ctx.save();
                 ctx.translate(a.x, a.y);
@@ -376,7 +376,7 @@
                 ctx.translate(player.x, player.y);
                 ctx.rotate(player.angle);
                 
-                ctx.shadowBlur = 15; ctx.shadowColor = player.invuln > 120 ? '#ffcc00' : 'var(--player-color)';
+                 
                 ctx.strokeStyle = player.invuln > 120 ? '#ffcc00' : 'var(--player-color)';
                 ctx.lineWidth = 2;
                 
@@ -402,7 +402,7 @@
             }
 
             ctx.globalCompositeOperation = 'source-over';
-            ctx.shadowBlur = 0;
+            
         }
 
         function loop() {
