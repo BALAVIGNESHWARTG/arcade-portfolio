@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cyber Ninja</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Audiowide&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&display=swap');
 
         :root {
-            --bg: #0d0d1a;
+            --bg: #090914;
             --blade: #00ffff;
             --bomb: #ff0033;
         }
@@ -17,40 +17,58 @@
         
         body {
             margin: 0; padding: 0; background-color: var(--bg); color: #fff;
-            font-family: 'Audiowide', cursive; display: flex; flex-direction: column;
+            font-family: 'Orbitron', sans-serif; display: flex; flex-direction: column;
             align-items: center; justify-content: center; height: 100vh; overflow: hidden;
             cursor: crosshair;
         }
 
         #game-container {
             position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 600px;
-            background: radial-gradient(circle, #1a1a33 0%, var(--bg) 100%);
-            box-shadow: 0 0 40px rgba(0, 255, 255, 0.2); border: 2px solid var(--blade);
-            overflow: hidden; border-radius: 5px;
+            background: radial-gradient(circle at center, #151525 0%, var(--bg) 100%);
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.05);
+            overflow: hidden; border-radius: 12px;
         }
 
         canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
 
         .hud {
             position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between;
-            font-size: 28px; z-index: 10; pointer-events: none; text-shadow: 0 0 10px var(--blade); color: var(--blade);
+            font-size: 22px; z-index: 10; pointer-events: none; font-weight: 800;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.8); letter-spacing: 2px;
         }
+        
+        .score-val { color: var(--blade); text-shadow: 0 0 10px rgba(0,255,255,0.4); font-size: 26px;}
+        .lives-val { color: #fff; }
 
-        /* Modals */
+        /* Glassmorphism Modals */
         .modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(13, 13, 26, 0.9); border: 2px solid var(--blade); padding: 40px;
-            text-align: center; box-shadow: 0 0 30px var(--blade); z-index: 30;
-            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 450px;
+            background: rgba(9, 9, 20, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px; text-align: center; z-index: 30;
+            border-radius: 20px; pointer-events: auto; width: 85%; max-width: 450px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05);
         }
-        h1 { color: var(--blade); margin-top: 0; font-size: 40px; text-shadow: 0 0 15px var(--blade); margin-bottom: 20px; }
-        p { color: #aaa; line-height: 1.5; font-size: 16px; margin-bottom: 30px; }
+        h1 { color: #fff; margin-top: 0; font-size: 38px; text-shadow: 0 0 15px var(--blade); margin-bottom: 15px; letter-spacing: 3px; }
+        p { color: #a0a0a0; line-height: 1.6; font-size: 14px; margin-bottom: 30px; letter-spacing: 1px; }
+        
+        /* Post-Neumorphic Tactile Button */
         button {
-            background: transparent; color: var(--blade); border: 2px solid var(--blade);
-            padding: 15px 40px; font-family: 'Audiowide', cursive; font-size: 20px; cursor: pointer; transition: 0.2s;
-            border-radius: 5px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); text-transform: uppercase;
+            background: linear-gradient(135deg, rgba(0,255,255,0.15), rgba(0,255,255,0.05));
+            color: #fff; border: 1px solid rgba(0,255,255,0.3);
+            padding: 15px 40px; font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 800;
+            cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border-radius: 50px; box-shadow: 0 8px 15px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+            text-transform: uppercase; letter-spacing: 2px;
         }
-        button:hover { background: var(--blade); color: #000; box-shadow: 0 0 30px var(--blade); }
+        button:hover { 
+            background: linear-gradient(135deg, rgba(0,255,255,0.3), rgba(0,255,255,0.1));
+            box-shadow: 0 12px 25px rgba(0, 255, 255, 0.2), inset 0 1px 0 rgba(255,255,255,0.4);
+            transform: translateY(-2px);
+        }
+        button:active { transform: translateY(1px); box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -58,20 +76,20 @@
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         <div class="hud">
-            <div id="scoreEl">SCORE: 0</div>
-            <div id="livesEl">LIVES: 3</div>
+            <div>SCORE<br><span class="score-val" id="scoreEl">0</span></div>
+            <div style="text-align:right;">LIVES<br><span class="lives-val" id="livesEl">3</span></div>
         </div>
 
         <div id="start-screen" class="modal">
             <h1>CYBER NINJA</h1>
-            <p>Drag or swipe to slice polygons.<br>Don't let them fall off screen.<br>AVOID RED BOMBS!</p>
+            <p>Drag or swipe to slice polygons.<br>Don't let them fall off screen.<br><span style="color:var(--bomb)">AVOID RED BOMBS!</span></p>
             <button id="start-btn">ENGAGE</button>
         </div>
         
         <div id="game-over-screen" class="modal hidden">
             <h1 style="color:var(--bomb); text-shadow: 0 0 15px var(--bomb);">SYSTEM FAILURE</h1>
-            <p id="final-stats">Score: 0</p>
-            <button id="restart-btn" style="border-color:var(--bomb); color:var(--bomb);">REBOOT</button>
+            <p id="final-stats" style="font-size: 18px; color: #fff;">Score: 0</p>
+            <button id="restart-btn" style="border-color:rgba(255,0,51,0.5); background: linear-gradient(135deg, rgba(255,0,51,0.2), rgba(255,0,51,0.05));">REBOOT</button>
         </div>
     </div>
 
@@ -95,9 +113,10 @@
 
         const GRAVITY = 0.2;
         
-        let objects = []; // Active polygons
+        let objects = []; 
         let particles = [];
-        let trail = []; // mouse/touch trail
+        let trail = []; 
+        let missedTrailPoints = []; // to check full swipe segment between frames
         
         const COLORS = ['#00ffcc', '#ff00ff', '#e9b64a', '#3498db'];
 
@@ -109,7 +128,7 @@
                 x: width/4 + Math.random() * (width/2),
                 y: height + 50,
                 vx: (Math.random() - 0.5) * 6,
-                vy: -12 - Math.random() * 6,
+                vy: -13 - Math.random() * 5,
                 rotation: 0,
                 vr: (Math.random() - 0.5) * 0.2,
                 size: size,
@@ -120,8 +139,7 @@
                 halves: []
             };
 
-            // Generate polygon shape
-            let sides = isBomb ? 10 : Math.floor(Math.random() * 4) + 3; // 3 to 6 sides
+            let sides = isBomb ? 10 : Math.floor(Math.random() * 4) + 3; 
             for(let i=0; i<sides; i++) {
                 let angle = (i * 2 * Math.PI) / sides;
                 obj.points.push({ x: Math.cos(angle)*size, y: Math.sin(angle)*size });
@@ -130,7 +148,7 @@
             objects.push(obj);
         }
 
-        // Check if two line segments intersect
+        // Check if two line segments intersect and return point
         function lineIntersect(x1,y1,x2,y2, x3,y3,x4,y4) {
             let det = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
             if (det === 0) return null;
@@ -142,10 +160,40 @@
             return null;
         }
 
+        function createPolygonSlice(points, lineX1, lineY1, lineX2, lineY2) {
+            // Simple split: check intersection of all edges with the slice line
+            // Then reconstruct two polygons
+            let p1 = [], p2 = [];
+            let intersections = [];
+            
+            let n = points.length;
+            for(let i=0; i<n; i++) {
+                let j = (i+1)%n;
+                let pt = lineIntersect(lineX1, lineY1, lineX2, lineY2, points[i].x, points[i].y, points[j].x, points[j].y);
+                if (pt) intersections.push({pt: pt, edge: i});
+            }
+
+            if (intersections.length === 2) {
+                // We have a clean slice.
+                // Reconstruct polygon 1
+                for(let i=0; i<=intersections[0].edge; i++) p1.push(points[i]);
+                p1.push(intersections[0].pt);
+                p1.push(intersections[1].pt);
+                for(let i=intersections[1].edge+1; i<n; i++) p1.push(points[i]);
+                
+                // Reconstruct polygon 2
+                p2.push(intersections[0].pt);
+                for(let i=intersections[0].edge+1; i<=intersections[1].edge; i++) p2.push(points[i]);
+                p2.push(intersections[1].pt);
+                
+                return [p1, p2];
+            }
+            return null; // Slice missed or hit a vertex perfectly (ignore for simplicity)
+        }
+
         function sliceObject(obj, lineX1, lineY1, lineX2, lineY2) {
             if (obj.sliced) return;
 
-            // Transform slice line to object's local space
             let cos = Math.cos(-obj.rotation);
             let sin = Math.sin(-obj.rotation);
             
@@ -157,28 +205,16 @@
             let localX2 = lx2 * cos - ly2 * sin;
             let localY2 = lx2 * sin + ly2 * cos;
 
-            let intersections = [];
-            let p = obj.points;
-            let n = p.length;
-            
-            for(let i=0; i<n; i++) {
-                let j = (i+1)%n;
-                let pt = lineIntersect(localX1, localY1, localX2, localY2, p[i].x, p[i].y, p[j].x, p[j].y);
-                if (pt) {
-                    intersections.push({ pt, index: i });
-                }
-            }
+            let halves = createPolygonSlice(obj.points, localX1, localY1, localX2, localY2);
 
-            if (intersections.length >= 2) {
-                // Successful slice
+            if (halves) {
                 obj.sliced = true;
                 
                 if (obj.isBomb) {
-                    // Explosion
-                    for(let i=0; i<30; i++) {
+                    for(let i=0; i<40; i++) {
                         particles.push({
                             x: obj.x, y: obj.y,
-                            vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15,
+                            vx: (Math.random()-0.5)*18, vy: (Math.random()-0.5)*18,
                             life: 30, color: 'var(--bomb)'
                         });
                     }
@@ -187,9 +223,8 @@
                 }
 
                 score += 10;
-                document.getElementById('scoreEl').textContent = `SCORE: ${score}`;
+                document.getElementById('scoreEl').textContent = score;
                 
-                // Create sparks
                 for(let i=0; i<15; i++) {
                     particles.push({
                         x: obj.x, y: obj.y,
@@ -198,11 +233,18 @@
                     });
                 }
                 
-                // For visual simplicity in 2D canvas, we will just make the halves by shrinking the original 
-                // and pushing them apart rather than doing exact polygon splitting math.
+                // Determine normal vector of slice line to push halves apart
+                let dx = localX2 - localX1;
+                let dy = localY2 - localY1;
+                let len = Math.hypot(dx, dy);
+                let nx = -dy/len; let ny = dx/len;
+                // Convert normal back to global space
+                let gnx = nx * Math.cos(obj.rotation) - ny * Math.sin(obj.rotation);
+                let gny = nx * Math.sin(obj.rotation) + ny * Math.cos(obj.rotation);
+
                 obj.halves = [
-                    { x: obj.x, y: obj.y, vx: obj.vx - 2, vy: obj.vy, rotation: obj.rotation, vr: obj.vr - 0.1 },
-                    { x: obj.x, y: obj.y, vx: obj.vx + 2, vy: obj.vy, rotation: obj.rotation, vr: obj.vr + 0.1 }
+                    { x: obj.x, y: obj.y, vx: obj.vx + gnx*3, vy: obj.vy + gny*3, rotation: obj.rotation, vr: obj.vr + 0.1, points: halves[0] },
+                    { x: obj.x, y: obj.y, vx: obj.vx - gnx*3, vy: obj.vy - gny*3, rotation: obj.rotation, vr: obj.vr - 0.1, points: halves[1] }
                 ];
             }
         }
@@ -210,17 +252,26 @@
         function update() {
             frame++;
             
-            // Spawn logic
-            let spawnRate = Math.max(20, 80 - Math.floor(frame / 60));
+            let spawnRate = Math.max(20, 70 - Math.floor(frame / 60));
             if (frame % spawnRate === 0) spawnObject();
 
-            // Update trail
             for(let i=0; i<trail.length; i++) {
                 trail[i].life--;
             }
             trail = trail.filter(t => t.life > 0);
 
-            // Update objects
+            // Combine current trail segments and new segments generated since last frame
+            let segments = [];
+            for(let i=0; i<trail.length-1; i++) {
+                segments.push({x1: trail[i].x, y1: trail[i].y, x2: trail[i+1].x, y2: trail[i+1].y});
+            }
+            for(let i=0; i<missedTrailPoints.length-1; i++) {
+                segments.push({x1: missedTrailPoints[i].x, y1: missedTrailPoints[i].y, x2: missedTrailPoints[i+1].x, y2: missedTrailPoints[i+1].y});
+            }
+            if(trail.length > 0 && missedTrailPoints.length > 0) {
+                 segments.push({x1: trail[trail.length-1].x, y1: trail[trail.length-1].y, x2: missedTrailPoints[0].x, y2: missedTrailPoints[0].y});
+            }
+
             for(let i=objects.length-1; i>=0; i--) {
                 let obj = objects[i];
                 
@@ -230,29 +281,32 @@
                     obj.y += obj.vy;
                     obj.rotation += obj.vr;
 
-                    // Missed an object
                     if (obj.y > height + 100 && obj.vy > 0) {
                         if (!obj.isBomb) {
                             lives--;
-                            document.getElementById('livesEl').textContent = `LIVES: ${lives}`;
+                            document.getElementById('livesEl').textContent = lives;
                             if (lives <= 0) loseGame();
                         }
                         objects.splice(i, 1);
                         continue;
                     }
 
-                    // Check slicing from trail
-                    if (trail.length >= 2) {
-                        let t1 = trail[trail.length-1];
-                        let t2 = trail[trail.length-2];
-                        // Rough bounding box check first
-                        if (obj.x > Math.min(t1.x, t2.x) - obj.size && obj.x < Math.max(t1.x, t2.x) + obj.size &&
-                            obj.y > Math.min(t1.y, t2.y) - obj.size && obj.y < Math.max(t1.y, t2.y) + obj.size) {
-                            sliceObject(obj, t1.x, t1.y, t2.x, t2.y);
+                    // Check slicing against all active line segments
+                    if (!obj.sliced) {
+                        for(let seg of segments) {
+                            // Expand bounding box check for long, fast swipes
+                            let minX = Math.min(seg.x1, seg.x2) - obj.size;
+                            let maxX = Math.max(seg.x1, seg.x2) + obj.size;
+                            let minY = Math.min(seg.y1, seg.y2) - obj.size;
+                            let maxY = Math.max(seg.y1, seg.y2) + obj.size;
+                            
+                            if (obj.x > minX && obj.x < maxX && obj.y > minY && obj.y < maxY) {
+                                sliceObject(obj, seg.x1, seg.y1, seg.x2, seg.y2);
+                                if (obj.sliced) break;
+                            }
                         }
                     }
                 } else {
-                    // Update halves
                     for(let h of obj.halves) {
                         h.vy += GRAVITY;
                         h.x += h.vx;
@@ -264,8 +318,11 @@
                     }
                 }
             }
+            
+            // Push missed points into main trail and clear
+            missedTrailPoints.forEach(pt => trail.push(pt));
+            missedTrailPoints = [];
 
-            // Particles
             for(let i=particles.length-1; i>=0; i--) {
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy; p.life--;
@@ -273,55 +330,53 @@
             }
         }
 
-        function drawPolygon(obj, ctx) {
+        function drawPolygonData(points, ctx) {
             ctx.beginPath();
-            let p = obj.points;
-            for(let i=0; i<p.length; i++) {
-                if (i===0) ctx.moveTo(p[i].x, p[i].y);
-                else ctx.lineTo(p[i].x, p[i].y);
+            for(let i=0; i<points.length; i++) {
+                if (i===0) ctx.moveTo(points[i].x, points[i].y);
+                else ctx.lineTo(points[i].x, points[i].y);
             }
             ctx.closePath();
-            ctx.fillStyle = obj.color;
-            ctx.shadowColor = obj.color;
-            ctx.shadowBlur = 15;
             ctx.fill();
-            ctx.shadowBlur = 0;
-            
-            // Bomb detail
-            if (obj.isBomb) {
-                ctx.fillStyle = '#111';
-                ctx.beginPath(); ctx.arc(0, 0, obj.size*0.4, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#fff';
-                ctx.fillText("X", -4, 4);
-            }
         }
 
         function draw() {
             ctx.clearRect(0, 0, width, height);
 
-            // Draw objects
             objects.forEach(obj => {
                 if (!obj.sliced) {
                     ctx.save();
                     ctx.translate(obj.x, obj.y);
                     ctx.rotate(obj.rotation);
-                    drawPolygon(obj, ctx);
+                    ctx.fillStyle = obj.color;
+                    ctx.shadowColor = obj.color;
+                    ctx.shadowBlur = 15;
+                    drawPolygonData(obj.points, ctx);
+                    
+                    if (obj.isBomb) {
+                        ctx.fillStyle = '#111';
+                        ctx.shadowBlur = 0;
+                        ctx.beginPath(); ctx.arc(0, 0, obj.size*0.4, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#fff';
+                        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.font = '14px sans-serif';
+                        ctx.fillText("X", 0, 1);
+                    }
                     ctx.restore();
                 } else if (!obj.isBomb) {
-                    // Draw halves
                     obj.halves.forEach(h => {
                         ctx.save();
                         ctx.translate(h.x, h.y);
                         ctx.rotate(h.rotation);
-                        // Just draw the same polygon but scaled down on X to simulate a slice half
-                        ctx.scale(0.5, 1);
-                        drawPolygon(obj, ctx);
+                        ctx.fillStyle = obj.color;
+                        ctx.shadowColor = obj.color;
+                        ctx.shadowBlur = 10;
+                        drawPolygonData(h.points, ctx);
                         ctx.restore();
                     });
                 }
             });
 
-            // Particles
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = p.life / 20;
@@ -329,14 +384,13 @@
             });
             ctx.globalAlpha = 1;
 
-            // Trail
             if (trail.length > 1) {
                 ctx.strokeStyle = 'var(--blade)';
-                ctx.lineWidth = 4;
+                ctx.lineWidth = 5;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 ctx.shadowColor = 'var(--blade)';
-                ctx.shadowBlur = 10;
+                ctx.shadowBlur = 15;
                 ctx.beginPath();
                 ctx.moveTo(trail[0].x, trail[0].y);
                 for(let i=1; i<trail.length; i++) {
@@ -356,16 +410,15 @@
 
         function loseGame() {
             isRunning = false;
-            ctx.fillStyle = 'rgba(255, 0, 51, 0.3)';
+            ctx.fillStyle = 'rgba(255, 0, 51, 0.4)';
             ctx.fillRect(0, 0, width, height);
             
             setTimeout(() => {
-                document.getElementById('final-stats').textContent = `Score: ${score}`;
+                document.getElementById('final-stats').textContent = `Final Score: ${score}`;
                 document.getElementById('game-over-screen').classList.remove('hidden');
             }, 500);
         }
 
-        // Input
         let isDown = false;
         
         function getPos(e) {
@@ -378,7 +431,7 @@
         function down(e) {
             e.preventDefault();
             isDown = true;
-            trail = [];
+            trail = []; missedTrailPoints = [];
             let p = getPos(e);
             trail.push({x: p.x, y: p.y, life: 10});
         }
@@ -387,7 +440,7 @@
             if(!isDown) return;
             e.preventDefault();
             let p = getPos(e);
-            trail.push({x: p.x, y: p.y, life: 10});
+            missedTrailPoints.push({x: p.x, y: p.y, life: 10}); // Push to intermediate buffer to catch fast swipes
         }
         
         function up(e) {
@@ -407,10 +460,10 @@
             document.getElementById('game-over-screen').classList.add('hidden');
             
             score = 0; lives = 3; frame = 0;
-            document.getElementById('scoreEl').textContent = `SCORE: 0`;
-            document.getElementById('livesEl').textContent = `LIVES: 3`;
+            document.getElementById('scoreEl').textContent = score;
+            document.getElementById('livesEl').textContent = lives;
             
-            objects = []; particles = []; trail = [];
+            objects = []; particles = []; trail = []; missedTrailPoints = [];
             
             isRunning = true;
             loop();

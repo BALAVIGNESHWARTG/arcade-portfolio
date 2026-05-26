@@ -3,54 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Color Switch</title>
+    <title>Color Switch Minimal</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
 
         :root {
-            --bg: #222;
-            --c1: #ff0055; /* Pink */
-            --c2: #00ffcc; /* Cyan */
-            --c3: #f1c40f; /* Yellow */
-            --c4: #9b59b6; /* Purple */
+            --bg: #111111;
+            --c1: #ff0055;
+            --c2: #00e5ff;
+            --c3: #ffcc00;
+            --c4: #9d00ff;
         }
 
         * { box-sizing: border-box; touch-action: none; user-select: none; }
         
         body {
-            margin: 0; padding: 0; background-color: #111; color: #fff;
-            font-family: 'Righteous', cursive; display: flex; flex-direction: column;
+            margin: 0; padding: 0; background-color: var(--bg); color: #fff;
+            font-family: 'Outfit', sans-serif; display: flex; flex-direction: column;
             align-items: center; justify-content: center; height: 100vh; overflow: hidden;
         }
 
         #game-container {
             position: relative; width: 100%; height: 100%; max-width: 500px; max-height: 800px;
-            background-color: var(--bg); border-left: 2px solid #444; border-right: 2px solid #444;
+            background-color: var(--bg);
             overflow: hidden;
         }
 
         canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; }
 
         .hud {
-            position: absolute; top: 20px; left: 20px; right: 20px; text-align: center;
-            font-size: 36px; z-index: 10; pointer-events: none; text-shadow: 0 0 10px rgba(255,255,255,0.5);
+            position: absolute; top: 30px; left: 30px; right: 30px; display: flex; justify-content: center;
+            font-size: 32px; z-index: 10; pointer-events: none; font-weight: 900;
+            color: #ffffff; letter-spacing: 2px;
         }
 
-        /* Modals */
+        /* Modern Flat Minimalist Modals */
         .modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(17, 17, 17, 0.95); border: 3px solid #fff; padding: 40px;
-            text-align: center; box-shadow: 0 0 40px rgba(255, 255, 255, 0.2); z-index: 30;
-            border-radius: 20px; pointer-events: auto; width: 85%; max-width: 400px;
+            background: #ffffff; color: #111;
+            padding: 50px 40px; text-align: center; z-index: 30;
+            border-radius: 24px; pointer-events: auto; width: 85%; max-width: 350px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; align-items: center; gap: 20px;
         }
-        h1 { margin-top: 0; font-size: 48px; margin-bottom: 20px; background: linear-gradient(90deg, var(--c1), var(--c2), var(--c3), var(--c4)); -webkit-background-clip: text; color: transparent; }
-        p { color: #ccc; line-height: 1.5; font-size: 18px; margin-bottom: 30px; }
+        h1 { margin: 0; font-size: 36px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; }
+        .color-text span:nth-child(1) { color: var(--c1); }
+        .color-text span:nth-child(2) { color: var(--c2); }
+        .color-text span:nth-child(3) { color: var(--c3); }
+        .color-text span:nth-child(4) { color: var(--c4); }
+        
+        p { color: #555; line-height: 1.5; font-size: 16px; margin: 0; font-weight: 500; }
+        
         button {
-            background: #fff; color: #111; border: none;
-            padding: 15px 40px; font-family: 'Righteous', cursive; font-size: 24px; cursor: pointer; transition: 0.2s;
-            border-radius: 30px; box-shadow: 0 0 20px rgba(255, 255, 255, 0.5); text-transform: uppercase;
+            background: #111; color: #fff; border: none;
+            padding: 16px 40px; font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700;
+            cursor: pointer; transition: 0.2s transform; border-radius: 50px;
+            margin-top: 10px; width: 100%;
         }
         button:hover { transform: scale(1.05); }
+        button:active { transform: scale(0.95); }
+        
         .hidden { display: none !important; }
 
         #tap-zone {
@@ -66,15 +78,15 @@
         <div id="tap-zone"></div>
 
         <div id="start-screen" class="modal">
-            <h1>COLOR SWITCH</h1>
-            <p>Tap to bounce.<br>Pass through the matching color.<br>Grab stars to switch colors.</p>
+            <h1 class="color-text"><span>C</span><span>O</span><span>L</span><span>O</span><span>R</span><br>SWITCH</h1>
+            <p>Tap to jump.<br>Pass through the matching color.</p>
             <button id="start-btn">PLAY</button>
         </div>
         
         <div id="game-over-screen" class="modal hidden">
-            <h1 style="background: none; color: #fff;">GAME OVER</h1>
-            <p id="final-stats">Score: 0</p>
-            <button id="restart-btn">RETRY</button>
+            <h1 style="color:var(--c1);">GAME OVER</h1>
+            <p id="final-stats" style="font-size: 24px; color: #111; font-weight: 800;">Score: 0</p>
+            <button id="restart-btn">TRY AGAIN</button>
         </div>
     </div>
 
@@ -84,218 +96,138 @@
         const container = document.getElementById('game-container');
         
         let width, height;
-        const LOGICAL_W = 500;
-        const LOGICAL_H = 800;
-        let scaleX = 1, scaleY = 1;
-
         function resize() {
-            let cw = container.clientWidth;
-            let ch = container.clientHeight;
-            canvas.width = cw; canvas.height = ch;
-            scaleX = cw / LOGICAL_W;
-            scaleY = ch / LOGICAL_H;
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width; canvas.height = height;
         }
         window.addEventListener('resize', resize); resize();
 
+        const COLORS = ['#ff0055', '#00e5ff', '#ffcc00', '#9d00ff']; // Exact hex strings
+        
         let isRunning = false;
         let score = 0;
         let cameraY = 0;
 
-        const COLORS = [
-            getComputedStyle(document.documentElement).getPropertyValue('--c1').trim(),
-            getComputedStyle(document.documentElement).getPropertyValue('--c2').trim(),
-            getComputedStyle(document.documentElement).getPropertyValue('--c3').trim(),
-            getComputedStyle(document.documentElement).getPropertyValue('--c4').trim()
-        ];
-
-        let ball = { x: 250, y: 600, vy: 0, radius: 12, colorIndex: 0 };
-        const GRAVITY = 0.35;
-        const JUMP_FORCE = -7.5;
-
+        let ball = { y: 0, vy: 0, colorIdx: 0, radius: 12 };
         let obstacles = [];
         let particles = [];
+        let colorChangers = [];
 
-        function spawnObstacle(yPos) {
+        function addObstacle(yPos) {
             let type = Math.random() > 0.5 ? 'circle' : 'cross';
-            let rotSpeed = (Math.random() * 0.02 + 0.015) * (Math.random() > 0.5 ? 1 : -1);
-            
-            // Add the obstacle
-            obstacles.push({
+            let obs = {
+                y: yPos,
                 type: type,
-                x: 250, y: yPos,
-                radius: 80, thickness: 15,
-                rotation: 0, rotSpeed: rotSpeed,
-                passed: false
-            });
+                angle: 0,
+                speed: (0.015 + Math.random() * 0.01) * (Math.random() > 0.5 ? 1 : -1),
+                radius: 80,
+                thickness: 18
+            };
+            obstacles.push(obs);
             
-            // Add color switcher star inside/above
-            obstacles.push({
-                type: 'star',
-                x: 250, y: yPos, // inside the obstacle
+            // Add a color changer above the obstacle
+            colorChangers.push({
+                y: yPos - 180,
                 radius: 15,
                 collected: false
             });
-            
-            // Add points star between obstacles
-            obstacles.push({
-                type: 'point',
-                x: 250, y: yPos - 150,
-                radius: 10,
-                collected: false
-            });
         }
 
-        function initLevel() {
-            obstacles = [];
-            ball = { x: 250, y: 600, vy: 0, radius: 12, colorIndex: Math.floor(Math.random() * 4) };
-            cameraY = 0;
-            score = 0;
-            
-            // Spawn initial obstacles
-            for (let i=0; i<5; i++) {
-                spawnObstacle(400 - i * 350);
-            }
-        }
-
-        function drawStar(ctx, x, y, r, p, m, color) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.translate(x, y);
-            ctx.moveTo(0, 0 - r);
-            for (let i = 0; i < p; i++) {
-                ctx.rotate(Math.PI / p);
-                ctx.lineTo(0, 0 - (r * m));
-                ctx.rotate(Math.PI / p);
-                ctx.lineTo(0, 0 - r);
-            }
-            ctx.fillStyle = color;
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 10;
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function drawArc(ctx, x, y, r, thickness, startAngle, endAngle, color) {
-            ctx.beginPath();
-            ctx.arc(x, y, r, startAngle, endAngle);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = thickness;
-            ctx.lineCap = 'butt';
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 10;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        }
-
-        function checkCollision() {
-            // Screen bottom limit (Camera follows up, so if ball drops too far from camera, it dies)
-            if (ball.y > cameraY + LOGICAL_H - 50) {
-                die();
-                return;
-            }
-
-            for (let ob of obstacles) {
-                if (ob.type === 'circle') {
-                    // Check intersection with circular band
-                    let dist = Math.hypot(ball.x - ob.x, ball.y - ob.y);
-                    if (dist > ob.radius - ob.thickness/2 - ball.radius && dist < ob.radius + ob.thickness/2 + ball.radius) {
-                        // Find which quadrant the ball is in relative to the obstacle
-                        let angle = Math.atan2(ball.y - ob.y, ball.x - ob.x);
-                        // Adjust angle by obstacle rotation
-                        angle = (angle - ob.rotation + Math.PI*4) % (Math.PI*2);
-                        
-                        let segment = Math.floor(angle / (Math.PI/2)); // 0, 1, 2, 3
-                        
-                        // Compare segment color to ball color (order in draw loop)
-                        // 0: c1, 1: c2, 2: c3, 3: c4
-                        if (segment !== ball.colorIndex) {
-                            die();
-                            return;
-                        }
-                    }
-                } else if (ob.type === 'cross') {
-                    // Approximate cross hitboxes
-                    let length = ob.radius;
-                    let thick = ob.thickness;
-                    
-                    for (let i=0; i<4; i++) {
-                        let rotAngle = ob.rotation + i * (Math.PI/2);
-                        // Convert ball to local space of the arm
-                        let dx = ball.x - ob.x;
-                        let dy = ball.y - ob.y;
-                        
-                        let localX = dx * Math.cos(-rotAngle) - dy * Math.sin(-rotAngle);
-                        let localY = dx * Math.sin(-rotAngle) + dy * Math.cos(-rotAngle);
-                        
-                        // Arm is from x=0 to x=length, y=-thick/2 to y=thick/2
-                        if (localX > 0 && localX < length && localY > -thick/2 - ball.radius && localY < thick/2 + ball.radius) {
-                            if (i !== ball.colorIndex) {
-                                die();
-                                return;
-                            }
-                        }
-                    }
-                } else if (ob.type === 'star' && !ob.collected) {
-                    let dist = Math.hypot(ball.x - ob.x, ball.y - ob.y);
-                    if (dist < ball.radius + ob.radius) {
-                        ob.collected = true;
-                        // Switch to a DIFFERENT color
-                        let nextColor;
-                        do { nextColor = Math.floor(Math.random() * 4); } while(nextColor === ball.colorIndex);
-                        ball.colorIndex = nextColor;
-                        
-                        // Particle burst
-                        createBurst(ob.x, ob.y, '#fff');
-                    }
-                } else if (ob.type === 'point' && !ob.collected) {
-                    let dist = Math.hypot(ball.x - ob.x, ball.y - ob.y);
-                    if (dist < ball.radius + ob.radius) {
-                        ob.collected = true;
-                        score++;
-                        document.getElementById('scoreEl').textContent = score;
-                        createBurst(ob.x, ob.y, '#f1c40f');
-                    }
-                }
-            }
-        }
-
-        function createBurst(x, y, color) {
-            for(let i=0; i<15; i++) {
-                particles.push({
-                    x: x, y: y,
-                    vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
-                    life: 20, color: color
-                });
-            }
+        // Distance from point to line segment
+        function distToSegment(px, py, x1, y1, x2, y2) {
+            let l2 = (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2);
+            if (l2 === 0) return Math.hypot(px-x1, py-y1);
+            let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            let projX = x1 + t * (x2 - x1);
+            let projY = y1 + t * (y2 - y1);
+            return Math.hypot(px - projX, py - projY);
         }
 
         function update() {
-            // Physics
-            ball.vy += GRAVITY;
+            ball.vy += 0.4;
             ball.y += ball.vy;
 
-            // Camera follow (only up)
-            if (ball.y < cameraY + LOGICAL_H/2) {
-                cameraY = ball.y - LOGICAL_H/2;
+            // Camera follow
+            let targetCameraY = -ball.y + height/2 + 100;
+            if (targetCameraY > cameraY) {
+                cameraY = targetCameraY;
+            }
+            
+            // Death by falling
+            if (ball.y > -cameraY + height) {
+                loseGame();
             }
 
-            // Spawn new obstacles as we go up
-            let highestOb = obstacles[obstacles.length-1];
-            if (cameraY < highestOb.y) {
-                spawnObstacle(highestOb.y - 350);
+            // Spawn obstacles
+            if (obstacles.length === 0 || obstacles[obstacles.length-1].y > -cameraY - 400) {
+                addObstacle((obstacles.length === 0 ? ball.y - 300 : obstacles[obstacles.length-1].y - 350));
             }
 
-            // Clean up off-screen obstacles
-            obstacles = obstacles.filter(ob => ob.y < cameraY + LOGICAL_H + 200);
+            let bx = width/2;
+            let by = ball.y;
 
-            // Rotate obstacles
-            obstacles.forEach(ob => {
-                if (ob.rotSpeed) ob.rotation += ob.rotSpeed;
-            });
+            // Update & check color changers
+            for(let i=colorChangers.length-1; i>=0; i--) {
+                let cc = colorChangers[i];
+                if (!cc.collected && Math.hypot(bx - width/2, by - cc.y) < ball.radius + cc.radius) {
+                    cc.collected = true;
+                    score++;
+                    document.getElementById('scoreEl').textContent = score;
+                    // Change to a DIFFERENT color
+                    let newC; do { newC = Math.floor(Math.random()*4); } while(newC === ball.colorIdx);
+                    ball.colorIdx = newC;
+                    
+                    for(let j=0; j<15; j++) {
+                        particles.push({
+                            x: width/2, y: cc.y,
+                            vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
+                            life: 20, color: COLORS[ball.colorIdx]
+                        });
+                    }
+                }
+            }
 
-            checkCollision();
+            // Update & check obstacles (Pixel-perfect exact math)
+            for(let obs of obstacles) {
+                obs.angle += obs.speed;
+                
+                // Only check if nearby
+                if (Math.abs(by - obs.y) > obs.radius + obs.thickness + ball.radius) continue;
 
-            // Particles
+                if (obs.type === 'circle') {
+                    // Check if ball is touching the ring boundary
+                    let d = Math.hypot(bx - width/2, by - obs.y);
+                    let inner = obs.radius - obs.thickness/2;
+                    let outer = obs.radius + obs.thickness/2;
+                    
+                    if (d + ball.radius > inner && d - ball.radius < outer) {
+                        // Find angle of ball relative to center
+                        let ang = Math.atan2(by - obs.y, bx - width/2);
+                        ang = (ang - obs.angle) % (Math.PI*2);
+                        if (ang < 0) ang += Math.PI*2;
+                        
+                        let segment = Math.floor(ang / (Math.PI/2)); // 0 to 3
+                        if (segment !== ball.colorIdx) loseGame();
+                    }
+                } else if (obs.type === 'cross') {
+                    // Cross consists of 4 arms extending from center.
+                    // Each arm is a line segment with a thickness.
+                    for (let i = 0; i < 4; i++) {
+                        let armAng = obs.angle + i * (Math.PI/2);
+                        let endX = width/2 + Math.cos(armAng) * obs.radius;
+                        let endY = obs.y + Math.sin(armAng) * obs.radius;
+                        
+                        // dist to segment
+                        let d = distToSegment(bx, by, width/2, obs.y, endX, endY);
+                        if (d < obs.thickness/2 + ball.radius) {
+                            if (i !== ball.colorIdx) loseGame();
+                        }
+                    }
+                }
+            }
+            
             for(let i=particles.length-1; i>=0; i--) {
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy; p.life--;
@@ -304,124 +236,129 @@
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+            ctx.clearRect(0, 0, width, height);
             ctx.save();
-            ctx.scale(scaleX, scaleY);
-            ctx.translate(0, -cameraY);
+            ctx.translate(0, cameraY);
 
-            // Draw Obstacles
-            obstacles.forEach(ob => {
-                if (ob.type === 'circle') {
+            // Draw color changers
+            colorChangers.forEach(cc => {
+                if (!cc.collected) {
+                    let pSize = cc.radius / 2;
+                    // Draw 4 quadrants
                     for(let i=0; i<4; i++) {
-                        let start = ob.rotation + i*(Math.PI/2);
-                        let end = start + (Math.PI/2) - 0.05; // slight gap
-                        drawArc(ctx, ob.x, ob.y, ob.radius, ob.thickness, start, end, COLORS[i]);
-                    }
-                } else if (ob.type === 'cross') {
-                    for(let i=0; i<4; i++) {
-                        ctx.save();
-                        ctx.translate(ob.x, ob.y);
-                        ctx.rotate(ob.rotation + i*(Math.PI/2));
                         ctx.fillStyle = COLORS[i];
-                        ctx.shadowColor = COLORS[i];
-                        ctx.shadowBlur = 10;
                         ctx.beginPath();
-                        // Rounded rect arm
-                        ctx.roundRect(0, -ob.thickness/2, ob.radius, ob.thickness, ob.thickness/2);
+                        ctx.moveTo(width/2, cc.y);
+                        ctx.arc(width/2, cc.y, cc.radius, i*Math.PI/2, (i+1)*Math.PI/2);
                         ctx.fill();
-                        ctx.restore();
                     }
-                } else if (ob.type === 'star' && !ob.collected) {
-                    // Multi-colored switcher
-                    let t = Date.now() / 1000;
-                    let c = COLORS[Math.floor((t*2)%4)];
-                    drawStar(ctx, ob.x, ob.y, ob.radius, 5, 0.4, c);
-                } else if (ob.type === 'point' && !ob.collected) {
-                    // Simple white star
-                    drawStar(ctx, ob.x, ob.y, ob.radius, 4, 0.3, '#fff');
                 }
             });
+
+            // Draw obstacles
+            obstacles.forEach(obs => {
+                ctx.lineWidth = obs.thickness;
+                ctx.lineCap = 'round'; // makes cross edges look nice
+                
+                if (obs.type === 'circle') {
+                    for(let i=0; i<4; i++) {
+                        ctx.strokeStyle = COLORS[i];
+                        ctx.beginPath();
+                        let startAng = obs.angle + i*Math.PI/2;
+                        let endAng = obs.angle + (i+1)*Math.PI/2;
+                        // small gap
+                        ctx.arc(width/2, obs.y, obs.radius, startAng + 0.05, endAng - 0.05);
+                        ctx.stroke();
+                    }
+                } else if (obs.type === 'cross') {
+                    for (let i = 0; i < 4; i++) {
+                        ctx.strokeStyle = COLORS[i];
+                        let armAng = obs.angle + i * (Math.PI/2);
+                        let endX = width/2 + Math.cos(armAng) * obs.radius;
+                        let endY = obs.y + Math.sin(armAng) * obs.radius;
+                        ctx.beginPath();
+                        ctx.moveTo(width/2, obs.y);
+                        ctx.lineTo(endX, endY);
+                        ctx.stroke();
+                    }
+                    // Cover center
+                    ctx.fillStyle = varBg; // need to read CSS var or just hardcode bg
+                    ctx.beginPath(); ctx.arc(width/2, obs.y, obs.thickness/2.2, 0, Math.PI*2); ctx.fill();
+                }
+            });
+
+            // Draw ball
+            if (isRunning) {
+                ctx.fillStyle = COLORS[ball.colorIdx];
+                ctx.beginPath();
+                ctx.arc(width/2, ball.y, ball.radius, 0, Math.PI*2);
+                ctx.fill();
+            }
 
             // Draw Particles
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = p.life / 20;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
             });
             ctx.globalAlpha = 1;
-
-            // Draw Ball
-            if (isRunning) {
-                let bc = COLORS[ball.colorIndex];
-                ctx.fillStyle = bc;
-                ctx.shadowColor = bc;
-                ctx.shadowBlur = 15;
-                ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2); ctx.fill();
-                ctx.shadowBlur = 0;
-            }
 
             ctx.restore();
         }
 
-        // Add roundRect polyfill for older browsers if needed, though canvas in modern supports it.
-        if (!CanvasRenderingContext2D.prototype.roundRect) {
-            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-                if (w < 2 * r) r = w / 2;
-                if (h < 2 * r) r = h / 2;
-                this.beginPath();
-                this.moveTo(x+r, y);
-                this.arcTo(x+w, y,   x+w, y+h, r);
-                this.arcTo(x+w, y+h, x,   y+h, r);
-                this.arcTo(x,   y+h, x,   y,   r);
-                this.arcTo(x,   y,   x+w, y,   r);
-                this.closePath();
-                return this;
-            }
-        }
-
-        function jump() {
-            if (isRunning) ball.vy = JUMP_FORCE;
-        }
+        const varBg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
 
         function loop() {
-            if(!isRunning && particles.length === 0) return;
-            if(isRunning) update();
-            else {
-                for(let i=particles.length-1; i>=0; i--) {
-                    let p = particles[i];
-                    p.x += p.vx; p.y += p.vy; p.life--;
-                    if(p.life <= 0) particles.splice(i, 1);
-                }
-            }
+            if(!isRunning) return;
+            update();
             draw();
             requestAnimationFrame(loop);
         }
 
-        function die() {
+        function loseGame() {
             isRunning = false;
-            createBurst(ball.x, ball.y, COLORS[ball.colorIndex]);
+            
+            // Explode ball
+            for(let i=0; i<30; i++) {
+                particles.push({
+                    x: width/2, y: ball.y,
+                    vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12,
+                    life: 30, color: COLORS[ball.colorIdx]
+                });
+            }
+            
+            draw(); // draw explosion once
             
             setTimeout(() => {
                 document.getElementById('final-stats').textContent = `Score: ${score}`;
                 document.getElementById('game-over-screen').classList.remove('hidden');
-            }, 800);
+            }, 600);
         }
 
-        let tapZone = document.getElementById('tap-zone');
-        tapZone.addEventListener('mousedown', jump);
-        tapZone.addEventListener('touchstart', (e)=>{e.preventDefault(); jump();}, {passive:false});
-        window.addEventListener('keydown', (e)=>{ if(e.code==='Space' || e.code==='ArrowUp') jump(); });
+        document.getElementById('tap-zone').addEventListener('mousedown', e => {
+            if(isRunning) ball.vy = -7.5;
+        });
+        document.getElementById('tap-zone').addEventListener('touchstart', e => {
+            e.preventDefault();
+            if(isRunning) ball.vy = -7.5;
+        }, {passive:false});
 
         function startGame() {
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('game-over-screen').classList.add('hidden');
-            document.getElementById('scoreEl').textContent = `0`;
             
-            initLevel();
+            score = 0; document.getElementById('scoreEl').textContent = `0`;
+            
+            ball = { y: height - 200, vy: -7, colorIdx: Math.floor(Math.random()*4), radius: 12 };
+            cameraY = 0;
+            obstacles = [];
+            colorChangers = [];
             particles = [];
+            
+            // First obstacle
+            addObstacle(height - 400);
+            
             isRunning = true;
-            jump(); // initial bounce
             loop();
         }
 
