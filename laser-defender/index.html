@@ -3,107 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Laser Defender - Overdrive</title>
+    <title>Laser Defender - 16-BIT EDITION</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
         :root {
-            --bg: #050505;
-            --laser-core: #ffffff;
-            --laser-glow: #00e5ff;
-            --heat-low: #00e5ff;
-            --heat-high: #ff003c;
-            --hud-color: #00e5ff;
-            --danger-color: #ff003c;
-            --cockpit-bg: #111;
+            --bg-color: #1a1a1a;
+            --metal-light: #8e8e8e;
+            --metal-mid: #5c5c5c;
+            --metal-dark: #2d2d2d;
+            --hud-green: #39ff14;
+            --hud-red: #ff0000;
+            --hud-yellow: #ffff00;
         }
 
         * { box-sizing: border-box; touch-action: none; user-select: none; }
         
         body {
-            margin: 0; padding: 0; background-color: var(--bg); color: var(--hud-color);
-            font-family: 'Orbitron', sans-serif; display: flex; flex-direction: column;
+            margin: 0; padding: 0; background-color: #000; color: var(--metal-light);
+            font-family: 'Press Start 2P', cursive; display: flex; flex-direction: column;
             align-items: center; justify-content: center; height: 100vh; overflow: hidden;
-            perspective: 800px;
+            /* No perspective, pure 2D retro */
         }
 
         #game-container {
-            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 1000px;
-            background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
+            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 900px;
+            background-color: var(--bg-color);
+            border: 8px solid var(--metal-mid);
+            border-top-color: var(--metal-light); border-left-color: var(--metal-light);
+            border-bottom-color: var(--metal-dark); border-right-color: var(--metal-dark);
             overflow: hidden;
-            box-shadow: 0 0 50px rgba(0,229,255,0.1);
         }
 
-        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; image-rendering: pixelated; }
 
-        /* Heavy Cockpit UI Overlay */
-        .cockpit {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;
-            background: 
-                linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 15%, transparent 85%, rgba(0,0,0,0.9) 100%),
-                linear-gradient(to right, rgba(0,0,0,0.8) 0%, transparent 10%, transparent 90%, rgba(0,0,0,0.8) 100%);
+        /* Chunky Retro UI Overlay */
+        .hud-panel {
+            position: absolute; top: 0; left: 0; width: 100%; display: flex; justify-content: space-between;
+            padding: 15px; z-index: 10; pointer-events: none;
+            background: var(--metal-dark); border-bottom: 4px solid var(--metal-mid);
         }
         
-        .hud-top {
-            position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between;
-            font-size: 24px; font-weight: 900; text-shadow: 0 0 10px var(--hud-color);
+        .hud-text {
+            font-size: 14px; color: var(--hud-green); text-shadow: 2px 2px 0 #000;
         }
 
-        /* Heat Gauge */
+        /* Blocky Heat Gauge */
         .heat-container {
-            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-            width: 300px; height: 20px; background: rgba(0,0,0,0.5); border: 2px solid var(--hud-color);
-            border-radius: 10px; overflow: hidden; box-shadow: 0 0 15px rgba(0,229,255,0.3);
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 300px; height: 24px; background: #000; 
+            border: 4px solid var(--metal-mid); border-top-color: var(--metal-dark); border-left-color: var(--metal-dark);
+            display: flex; align-items: center; padding: 2px;
         }
         #heat-bar {
-            height: 100%; width: 0%; background: var(--heat-low);
-            transition: width 0.1s linear, background 0.3s;
-            box-shadow: 0 0 10px currentColor;
+            height: 100%; width: 0%; background: var(--hud-green);
         }
         .heat-label {
-            position: absolute; bottom: 65px; left: 50%; transform: translateX(-50%);
-            font-size: 14px; letter-spacing: 2px;
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            font-size: 12px; color: var(--metal-light); text-shadow: 2px 2px 0 #000;
         }
         
-        /* Warning Overlay */
+        /* Warning Overlay (Pixelated Dither Effect instead of glow) */
         #warning-overlay {
             position: absolute; top:0; left:0; width:100%; height:100%;
-            background: rgba(255,0,60,0.1); box-shadow: inset 0 0 100px rgba(255,0,60,0.5);
-            z-index: 9; opacity: 0; pointer-events: none; transition: opacity 0.1s;
+            background-image: radial-gradient(var(--hud-red) 1px, transparent 1px);
+            background-size: 4px 4px; z-index: 9; opacity: 0; pointer-events: none;
         }
+
         .overheat-text {
             position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
-            color: var(--danger-color); font-size: 40px; font-weight: 900;
-            text-shadow: 0 0 20px var(--danger-color); opacity: 0; pointer-events: none; z-index: 20;
+            color: var(--hud-red); font-size: 24px; text-shadow: 4px 4px 0 #000; 
+            opacity: 0; pointer-events: none; z-index: 20; text-align: center; line-height: 1.5;
         }
 
-        /* Modals */
+        /* 16-Bit Modals */
         .modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(10,10,20,0.95); border: 2px solid var(--hud-color); padding: 40px;
-            text-align: center; box-shadow: 0 0 40px rgba(0,229,255,0.4); z-index: 30;
-            border-radius: 10px; min-width: 300px; pointer-events: auto;
+            background: var(--metal-mid); 
+            border: 6px solid var(--metal-light); border-bottom-color: var(--metal-dark); border-right-color: var(--metal-dark);
+            padding: 30px; text-align: center; z-index: 30;
+            width: 85%; max-width: 400px; pointer-events: auto;
+            box-shadow: 10px 10px 0 rgba(0,0,0,0.5);
         }
-        h1 { color: var(--hud-color); margin-top: 0; font-size: 32px; text-transform: uppercase; letter-spacing: 4px; text-shadow: 0 0 15px var(--hud-color); }
-        p { color: #aaa; line-height: 1.5; font-family: sans-serif; font-size: 14px; margin-bottom: 30px; }
+        h1 { color: #fff; margin-top: 0; font-size: 20px; text-shadow: 2px 2px 0 #000; margin-bottom: 20px; line-height: 1.4;}
+        p { color: #fff; line-height: 1.8; font-size: 10px; margin-bottom: 30px; text-shadow: 1px 1px 0 #000;}
         button {
-            background: transparent; color: var(--hud-color); border: 2px solid var(--hud-color);
-            padding: 15px 30px; font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: bold;
-            cursor: pointer; transition: 0.3s; text-transform: uppercase; border-radius: 5px;
+            background: var(--metal-light); color: #000; 
+            border: 4px solid #fff; border-bottom-color: var(--metal-dark); border-right-color: var(--metal-dark);
+            padding: 15px 20px; font-family: 'Press Start 2P', cursive; font-size: 12px;
+            cursor: pointer; text-transform: uppercase;
         }
-        button:hover { background: var(--hud-color); color: #000; box-shadow: 0 0 20px var(--hud-color); }
+        button:active { 
+            border-top-color: var(--metal-dark); border-left-color: var(--metal-dark);
+            border-bottom-color: #fff; border-right-color: #fff;
+            transform: translate(2px, 2px);
+        }
         .hidden { display: none !important; }
 
-        /* Scanlines */
-        .scanlines {
-            position: absolute; top:0; left:0; width:100%; height:100%; z-index: 15; pointer-events: none;
-            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.2) 51%);
-            background-size: 100% 4px; opacity: 0.5;
-        }
-
-        /* Mobile specific adjustments */
         @media (max-width: 600px) {
-            .hud-top { font-size: 18px; }
+            .hud-text { font-size: 10px; }
             .heat-container { width: 80%; }
         }
     </style>
@@ -111,31 +109,29 @@
 <body>
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
-        <div class="cockpit"></div>
-        <div class="scanlines"></div>
         <div id="warning-overlay"></div>
-        <div id="overheat-text" class="overheat-text">SYSTEM OVERHEAT</div>
+        <div id="overheat-text" class="overheat-text">OVERHEAT<br>LOCKED</div>
         
-        <div class="hud-top">
-            <div id="scoreEl">SCORE: 00000</div>
-            <div id="waveEl">WAVE: 01</div>
+        <div class="hud-panel">
+            <div class="hud-text" id="scoreEl">PTS:00000</div>
+            <div class="hud-text" id="waveEl">WAVE:01</div>
         </div>
         
-        <div class="heat-label">THERMAL CORE STATUS</div>
+        <div class="heat-label">WEAPON HEAT</div>
         <div class="heat-container">
             <div id="heat-bar"></div>
         </div>
 
         <div id="start-screen" class="modal">
-            <h1>LASER DEFENDER</h1>
-            <p><strong>ENGAGE OVERDRIVE.</strong><br><br>DRAG/MOVE MOUSE to aim your ship.<br>HOLD CLICK/TOUCH to fire the sustained heavy beam.<br>Do not let the Thermal Core reach 100%.</p>
-            <button id="start-btn">INITIALIZE</button>
+            <h1>LASER<br>DEFENDER</h1>
+            <p>DRAG to move ship.<br><br>HOLD to fire laser.<br><br>Watch the heat gauge!</p>
+            <button id="start-btn">INSERT COIN</button>
         </div>
         
         <div id="game-over-screen" class="modal hidden">
-            <h1 style="color:var(--danger-color); text-shadow:0 0 15px var(--danger-color); border-color:var(--danger-color);">HULL BREACH</h1>
-            <p id="final-score">FINAL SCORE: 0</p>
-            <button id="restart-btn" style="color:var(--danger-color); border-color:var(--danger-color);">REBOOT SYSTEMS</button>
+            <h1 style="color:var(--hud-red);">GAME OVER</h1>
+            <p id="final-score">SCORE: 0</p>
+            <button id="restart-btn">CONTINUE?</button>
         </div>
     </div>
 
@@ -144,12 +140,19 @@
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('game-container');
         
-        let width, height;
+        // Use a low logical resolution to force blocky pixels
+        const LOGICAL_W = 400;
+        const LOGICAL_H = 600;
+        let scaleX = 1, scaleY = 1;
+
         function resize() {
-            width = container.clientWidth;
-            height = container.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
+            let cw = container.clientWidth;
+            let ch = container.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+            scaleX = cw / LOGICAL_W;
+            scaleY = ch / LOGICAL_H;
+            ctx.imageSmoothingEnabled = false; // pixelated look
         }
         window.addEventListener('resize', resize);
         resize();
@@ -159,44 +162,39 @@
         let score = 0;
         let wave = 1;
         let frameCount = 0;
-        let screenShake = 0;
 
-        // Player / Ship Mechanics
-        let ship = { x: width/2, y: height - 100, radius: 20 };
+        let ship = { x: LOGICAL_W/2, y: LOGICAL_H - 50, radius: 15 };
         let isFiring = false;
-        let targetX = width/2;
+        let targetX = LOGICAL_W/2;
         
-        // Heat System
         let heat = 0;
         const HEAT_MAX = 100;
         let overheated = false;
 
-        // Entities
         let enemies = [];
         let particles = [];
         let stars = [];
 
-        // Setup Stars (Parallax)
-        for(let i=0; i<100; i++) {
+        // Stars (Blocky)
+        for(let i=0; i<40; i++) {
             stars.push({
-                x: Math.random() * width, y: Math.random() * height,
-                size: Math.random() * 2 + 1, speed: Math.random() * 3 + 1
+                x: Math.random() * LOGICAL_W, y: Math.random() * LOGICAL_H,
+                size: Math.random() > 0.5 ? 2 : 4, speed: Math.random() * 2 + 1,
+                color: Math.random() > 0.8 ? '#888' : '#444'
             });
         }
 
-        // DOM Elements
         const scoreEl = document.getElementById('scoreEl');
         const waveEl = document.getElementById('waveEl');
         const heatBar = document.getElementById('heat-bar');
         const warningOverlay = document.getElementById('warning-overlay');
         const overheatText = document.getElementById('overheat-text');
         
-        // Input Handling
         function handleMove(e) {
             if(!isRunning) return;
             let rect = canvas.getBoundingClientRect();
             let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            targetX = clientX - rect.left;
+            targetX = (clientX - rect.left) / scaleX;
         }
         function handleDown(e) { if(isRunning && !overheated) isFiring = true; }
         function handleUp(e) { isFiring = false; }
@@ -210,29 +208,32 @@
         container.addEventListener('touchstart', e => { e.preventDefault(); handleMove(e); handleDown(e); }, {passive: false});
         container.addEventListener('touchend', e => { e.preventDefault(); handleUp(e); }, {passive: false});
 
-        function createExplosion(x, y, color, size) {
-            for(let i=0; i<size; i++) {
+        function createExplosion(x, y, color, amount) {
+            for(let i=0; i<amount; i++) {
                 particles.push({
                     x: x, y: y,
-                    vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
-                    life: 1, maxLife: Math.random() * 0.5 + 0.5,
-                    color: color, size: Math.random() * 4 + 2
+                    vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                    life: 20 + Math.random()*10,
+                    color: color, size: Math.random() > 0.5 ? 4 : 8
                 });
             }
-            screenShake = Math.max(screenShake, size / 2);
         }
 
         function spawnWave() {
-            let numEnemies = 5 + wave * 2;
+            let numEnemies = 4 + wave;
             for(let i=0; i<numEnemies; i++) {
+                // Determine enemy type based on wave
+                let type = Math.random() > 0.7 ? 1 : 0;
                 enemies.push({
-                    x: Math.random() * (width - 60) + 30,
-                    y: -50 - (Math.random() * 500),
-                    vx: (Math.random() - 0.5) * 2,
-                    vy: Math.random() * 1 + 1 + (wave * 0.2),
-                    hp: 50 + (wave * 10),
-                    maxHp: 50 + (wave * 10),
-                    radius: 20 + Math.random() * 10
+                    x: Math.random() * (LOGICAL_W - 40) + 20,
+                    y: -40 - (Math.random() * 300),
+                    vx: (Math.random() - 0.5) * 1.5,
+                    vy: Math.random() * 0.5 + 0.5 + (wave * 0.1),
+                    hp: type === 1 ? 60 + (wave*10) : 30 + (wave*5),
+                    maxHp: type === 1 ? 60 + (wave*10) : 30 + (wave*5),
+                    radius: type === 1 ? 16 : 12,
+                    type: type,
+                    animOffset: Math.random() * 100
                 });
             }
         }
@@ -240,223 +241,225 @@
         function update() {
             frameCount++;
 
-            // Ship Movement (smooth follow)
-            targetX = Math.max(30, Math.min(width - 30, targetX));
-            ship.x += (targetX - ship.x) * 0.2;
+            targetX = Math.max(20, Math.min(LOGICAL_W - 20, targetX));
+            ship.x += (targetX - ship.x) * 0.15; // slightly stiff retro movement
 
-            // Stars
             stars.forEach(s => {
                 s.y += s.speed;
-                if(s.y > height) { s.y = -10; s.x = Math.random() * width; }
+                if(s.y > LOGICAL_H) { s.y = -10; s.x = Math.random() * LOGICAL_W; }
             });
 
-            // Heat Management
             if (isFiring && !overheated) {
-                heat += 0.8;
+                heat += 1.2;
                 if (heat >= HEAT_MAX) {
                     heat = HEAT_MAX;
                     overheated = true;
                     isFiring = false;
-                    screenShake = 20;
                     overheatText.style.opacity = 1;
-                    overheatText.style.animation = 'flicker 0.1s infinite';
+                    if (Math.floor(frameCount / 10) % 2 === 0) overheatText.style.color = 'var(--hud-yellow)';
+                    else overheatText.style.color = 'var(--hud-red)';
                 }
             } else {
-                heat -= overheated ? 0.4 : 0.6; // Cools slower when overheated
+                heat -= overheated ? 0.3 : 0.8;
                 if (heat <= 0) {
                     heat = 0;
                     if(overheated) {
                         overheated = false;
                         overheatText.style.opacity = 0;
-                        overheatText.style.animation = 'none';
                     }
                 }
             }
 
-            // Update UI
             let heatPercent = (heat / HEAT_MAX) * 100;
             heatBar.style.width = `${heatPercent}%`;
             
-            if(heatPercent > 75) {
-                heatBar.style.background = 'var(--heat-high)';
-                warningOverlay.style.opacity = Math.sin(frameCount * 0.2) * 0.5 + 0.5;
+            if(heatPercent > 80) {
+                heatBar.style.background = 'var(--hud-red)';
+                warningOverlay.style.opacity = (Math.floor(frameCount / 5) % 2 === 0) ? 0.3 : 0;
+            } else if (heatPercent > 50) {
+                heatBar.style.background = 'var(--hud-yellow)';
+                warningOverlay.style.opacity = 0;
             } else {
-                heatBar.style.background = 'var(--heat-low)';
+                heatBar.style.background = 'var(--hud-green)';
                 warningOverlay.style.opacity = 0;
             }
 
-            // Laser Collision Logic
-            let laserRect = { x: ship.x - 15, width: 30 }; // laser width
+            // Laser hitbox
+            let laserW = 12;
+            let laserX = ship.x - laserW/2;
             
             if (isFiring) {
-                // Generate laser sparks
-                particles.push({
-                    x: ship.x + (Math.random()-0.5)*20, y: ship.y - 20,
-                    vx: (Math.random()-0.5)*2, vy: -(Math.random()*5 + 5),
-                    life: 1, maxLife: 1, color: '#00e5ff', size: 3
-                });
-                screenShake = 2; // constant rumble while firing
+                if (frameCount % 3 === 0) { // blocky spark particles
+                    particles.push({
+                        x: ship.x + (Math.random()-0.5)*10, y: ship.y - 20,
+                        vx: (Math.random()-0.5)*2, vy: -4 - Math.random()*2,
+                        life: 10, color: '#00ffff', size: 4
+                    });
+                }
             }
 
-            // Enemies
             for(let i = enemies.length - 1; i >= 0; i--) {
                 let e = enemies[i];
                 e.x += e.vx;
                 e.y += e.vy;
                 
-                // Bounce off walls
-                if(e.x < e.radius || e.x > width - e.radius) e.vx *= -1;
+                if(e.x < e.radius || e.x > LOGICAL_W - e.radius) e.vx *= -1;
 
-                // Hit by laser
                 if (isFiring) {
-                    if (e.x + e.radius > laserRect.x && e.x - e.radius < laserRect.x + laserRect.width) {
+                    if (e.x + e.radius > laserX && e.x - e.radius < laserX + laserW) {
                         if (e.y < ship.y) {
-                            e.hp -= 2; // Damage rate
-                            // Hit sparks
-                            particles.push({
-                                x: e.x + (Math.random()-0.5)*e.radius, y: e.y + e.radius,
-                                vx: (Math.random()-0.5)*5, vy: Math.random()*5,
-                                life: 1, maxLife: 0.5, color: '#ffaa00', size: 4
-                            });
+                            e.hp -= 2.5; 
+                            if(frameCount % 4 === 0) {
+                                particles.push({
+                                    x: e.x + (Math.random()-0.5)*e.radius, y: e.y + e.radius,
+                                    vx: (Math.random()-0.5)*3, vy: Math.random()*3,
+                                    life: 15, color: '#ffff00', size: 4
+                                });
+                            }
                         }
                     }
                 }
 
-                // Enemy Death
                 if (e.hp <= 0) {
-                    createExplosion(e.x, e.y, '#ff003c', 30);
-                    score += 100;
-                    scoreEl.textContent = `SCORE: ${score.toString().padStart(5, '0')}`;
+                    createExplosion(e.x, e.y, e.type === 1 ? '#ff0000' : '#ff8800', 15);
+                    score += (e.type === 1 ? 200 : 100);
+                    scoreEl.textContent = `PTS:${score.toString().padStart(5, '0')}`;
                     enemies.splice(i, 1);
                     continue;
                 }
 
-                // Player Hit / Base breach
-                if (e.y > height + e.radius) {
-                    gameOver();
-                } else if (Math.hypot(ship.x - e.x, ship.y - e.y) < ship.radius + e.radius) {
-                    createExplosion(ship.x, ship.y, '#00e5ff', 50);
+                if (e.y > LOGICAL_H + e.radius || Math.hypot(ship.x - e.x, ship.y - e.y) < ship.radius + e.radius) {
+                    createExplosion(ship.x, ship.y, '#ffffff', 30);
                     gameOver();
                 }
             }
 
-            // Wave Progression
-            if(enemies.length === 0) {
+            if(enemies.length === 0 && isRunning) {
                 wave++;
-                waveEl.textContent = `WAVE: ${wave.toString().padStart(2, '0')}`;
+                waveEl.textContent = `WAVE:${wave.toString().padStart(2, '0')}`;
                 spawnWave();
             }
 
-            // Particles
             for(let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy;
-                p.life -= 1/60; // Assuming 60fps
+                p.life--;
                 if(p.life <= 0) particles.splice(i, 1);
             }
-            
-            // Screen shake decay
-            if(screenShake > 0) screenShake *= 0.9;
-            if(screenShake < 0.1) screenShake = 0;
         }
 
-        function draw() {
-            ctx.clearRect(0, 0, width, height);
+        // Helper to draw blocky sprites
+        function drawSprite(ctx, cx, cy, pixelSize, matrix, colorMap) {
+            let height = matrix.length;
+            let width = matrix[0].length;
+            let startX = cx - (width * pixelSize) / 2;
+            let startY = cy - (height * pixelSize) / 2;
             
-            ctx.save();
-            if (screenShake > 0) {
-                let dx = (Math.random() - 0.5) * screenShake;
-                let dy = (Math.random() - 0.5) * screenShake;
-                ctx.translate(dx, dy);
+            for(let r=0; r<height; r++) {
+                for(let c=0; c<width; c++) {
+                    let val = matrix[r][c];
+                    if (val > 0) {
+                        ctx.fillStyle = colorMap[val];
+                        ctx.fillRect(startX + c*pixelSize, startY + r*pixelSize, pixelSize, pixelSize);
+                    }
+                }
             }
+        }
 
+        const SHIP_SPRITE = [
+            [0,0,0,1,1,0,0,0],
+            [0,0,2,1,1,2,0,0],
+            [0,1,1,1,1,1,1,0],
+            [1,1,3,1,1,3,1,1],
+            [1,1,1,1,1,1,1,1],
+            [2,0,2,0,0,2,0,2]
+        ];
+        const SHIP_COLORS = { 1: '#aaaaaa', 2: '#ff0000', 3: '#00ffff' };
+
+        const ENEMY_0_SPRITE = [
+            [0,1,1,1,1,0],
+            [1,2,1,1,2,1],
+            [1,1,1,1,1,1],
+            [0,1,0,0,1,0],
+            [1,0,0,0,0,1]
+        ];
+        const ENEMY_0_COLORS = { 1: '#00cc00', 2: '#ff0000' };
+        
+        const ENEMY_1_SPRITE = [
+            [0,1,1,2,2,1,1,0],
+            [1,1,1,2,2,1,1,1],
+            [1,3,1,1,1,1,3,1],
+            [1,1,1,1,1,1,1,1],
+            [0,1,0,1,1,0,1,0]
+        ];
+        const ENEMY_1_COLORS = { 1: '#cc00cc', 2: '#ffcc00', 3: '#ffffff' };
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.scale(scaleX, scaleY);
+            
             // Draw Stars
-            ctx.fillStyle = '#fff';
             stars.forEach(s => {
-                ctx.globalAlpha = (s.y / height); // fade in at top
+                ctx.fillStyle = s.color;
                 ctx.fillRect(s.x, s.y, s.size, s.size);
             });
-            ctx.globalAlpha = 1;
 
-            ctx.globalCompositeOperation = 'lighter';
-
-            // Draw Laser Beam
+            // Draw Laser (Blocky and alternating colors for animation)
             if (isFiring) {
-                let pulse = Math.random() * 5;
+                let laserColor = (Math.floor(frameCount/2) % 2 === 0) ? '#00ffff' : '#ffffff';
+                ctx.fillStyle = laserColor;
+                ctx.fillRect(ship.x - 6, 0, 12, ship.y - 10);
                 
-                // Outer Glow
-                ctx.fillStyle = 'rgba(0, 229, 255, 0.3)';
-                 
-                ctx.fillRect(ship.x - 20 - pulse/2, 0, 40 + pulse, ship.y - 20);
+                // Outer jagged laser edges
+                ctx.fillStyle = '#0055ff';
+                for(let ly = 0; ly < ship.y - 10; ly += 8) {
+                    if (Math.random() > 0.5) ctx.fillRect(ship.x - 10, ly, 4, 4);
+                    if (Math.random() > 0.5) ctx.fillRect(ship.x + 6, ly, 4, 4);
+                }
+            }
+
+            // Draw Enemies
+            enemies.forEach(e => {
+                let pixelSize = e.type === 1 ? 4 : 3;
+                let sprite = e.type === 1 ? ENEMY_1_SPRITE : ENEMY_0_SPRITE;
+                let colors = e.type === 1 ? ENEMY_1_COLORS : ENEMY_0_COLORS;
                 
-                // Inner Core
-                ctx.fillStyle = 'var(--laser-core)';
-                
-                ctx.fillRect(ship.x - 8 - pulse/4, 0, 16 + pulse/2, ship.y - 20);
+                // Animation frame toggle (move legs)
+                let animSprite = JSON.parse(JSON.stringify(sprite));
+                if (Math.floor((frameCount + e.animOffset) / 10) % 2 === 0) {
+                    // shift bottom row inwards
+                    let lastRow = animSprite[animSprite.length-1];
+                    let temp = lastRow[0]; lastRow[0] = lastRow[1]; lastRow[1] = temp;
+                    temp = lastRow[lastRow.length-1]; lastRow[lastRow.length-1] = lastRow[lastRow.length-2]; lastRow[lastRow.length-2] = temp;
+                }
+
+                drawSprite(ctx, e.x, e.y, pixelSize, animSprite, colors);
+
+                // HP Bar (Pixelated)
+                let hpWidth = 30;
+                ctx.fillStyle = '#440000';
+                ctx.fillRect(e.x - hpWidth/2, e.y - e.radius - 8, hpWidth, 4);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(e.x - hpWidth/2, e.y - e.radius - 8, hpWidth * (e.hp/e.maxHp), 4);
+            });
+
+            // Draw Player Ship
+            drawSprite(ctx, ship.x, ship.y, 4, SHIP_SPRITE, SHIP_COLORS);
+            
+            // Engine exhaust
+            if (frameCount % 4 < 2) {
+                ctx.fillStyle = '#ffaa00';
+                ctx.fillRect(ship.x - 6, ship.y + 12, 4, 4);
+                ctx.fillRect(ship.x + 2, ship.y + 12, 4, 4);
             }
 
             // Draw Particles
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.life / p.maxLife;
-                 
                 ctx.fillRect(p.x, p.y, p.size, p.size);
             });
-            ctx.globalAlpha = 1;
 
-            // Draw Enemies
-            enemies.forEach(e => {
-                // Alien shape (hexagon-ish)
-                ctx.fillStyle = '#111';
-                ctx.strokeStyle = 'var(--danger-color)';
-                ctx.lineWidth = 3;
-                 
-                
-                ctx.beginPath();
-                for(let i=0; i<6; i++) {
-                    let angle = i * Math.PI / 3 + (frameCount * 0.05);
-                    let px = e.x + Math.cos(angle) * e.radius;
-                    let py = e.y + Math.sin(angle) * e.radius;
-                    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
-                }
-                ctx.closePath();
-                ctx.fill(); ctx.stroke();
-                
-                // HP Bar
-                ctx.fillStyle = 'rgba(255,0,60,0.3)';
-                
-                ctx.fillRect(e.x - e.radius, e.y - e.radius - 10, e.radius*2, 4);
-                ctx.fillStyle = 'var(--danger-color)';
-                ctx.fillRect(e.x - e.radius, e.y - e.radius - 10, (e.radius*2) * (e.hp/e.maxHp), 4);
-            });
-
-            // Draw Player Ship
-            ctx.fillStyle = '#111';
-            ctx.strokeStyle = 'var(--hud-color)';
-            ctx.lineWidth = 3;
-             
-            
-            // Cockpit shape
-            ctx.beginPath();
-            ctx.moveTo(ship.x, ship.y - 25); // Nose
-            ctx.lineTo(ship.x + 25, ship.y + 20); // Right Wing
-            ctx.lineTo(ship.x + 10, ship.y + 15); // Right Engine
-            ctx.lineTo(ship.x - 10, ship.y + 15); // Left Engine
-            ctx.lineTo(ship.x - 25, ship.y + 20); // Left Wing
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            
-            // Engine thrust
-            ctx.fillStyle = '#00e5ff';
-            
-            ctx.beginPath();
-            ctx.moveTo(ship.x - 10, ship.y + 18);
-            ctx.lineTo(ship.x, ship.y + 35 + Math.random()*15);
-            ctx.lineTo(ship.x + 10, ship.y + 18);
-            ctx.fill();
-
-            ctx.globalCompositeOperation = 'source-over';
-            
             ctx.restore();
         }
 
@@ -470,15 +473,9 @@
         function startGame() {
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('game-over-screen').classList.add('hidden');
-            score = 0;
-            wave = 1;
-            heat = 0;
-            overheated = false;
-            isFiring = false;
-            enemies = [];
-            particles = [];
-            scoreEl.textContent = `SCORE: 00000`;
-            waveEl.textContent = `WAVE: 01`;
+            score = 0; wave = 1; heat = 0; overheated = false; isFiring = false;
+            enemies = []; particles = [];
+            scoreEl.textContent = `PTS:00000`; waveEl.textContent = `WAVE:01`;
             warningOverlay.style.opacity = 0;
             overheatText.style.opacity = 0;
             
@@ -489,18 +486,13 @@
 
         function gameOver() {
             isRunning = false;
-            document.getElementById('final-score').textContent = `FINAL SCORE: ${score}`;
+            document.getElementById('final-score').textContent = `SCORE: ${score}`;
             document.getElementById('game-over-screen').classList.remove('hidden');
             warningOverlay.style.opacity = 1;
         }
 
         document.getElementById('start-btn').addEventListener('click', startGame);
         document.getElementById('restart-btn').addEventListener('click', startGame);
-
-        // Add CSS keyframe for flicker
-        const style = document.createElement('style');
-        style.innerHTML = `@keyframes flicker { 0% {opacity:1;} 50% {opacity:0.2;} 100% {opacity:1;} }`;
-        document.head.appendChild(style);
     </script>
 </body>
 </html>

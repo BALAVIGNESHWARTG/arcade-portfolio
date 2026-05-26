@@ -30,7 +30,7 @@ Anchoring credibility with the classics.
 
 [ ] Pac-Man (Grid AI)
 
-[ ] Tetris
+[x] Block Drop (Tetris) (Completed)
 
 [x] Arkanoid (Completed)
 
@@ -66,7 +66,7 @@ High replayability and canvas optimization.
 
 Algorithmic thinking and state management.
 
-[ ] 2048
+[x] 2048 (Completed)
 
 [ ] Memory Flip
 
@@ -90,7 +90,7 @@ Algorithmic thinking and state management.
 
 Touch events and precision timing.
 
-[ ] Flappy Retro
+[x] Flappy Retro (Completed)
 
 [ ] One Button Jump
 
@@ -114,7 +114,7 @@ Touch events and precision timing.
 
 Gravity, velocity, and collision detection.
 
-[ ] Pixel Jumper
+[x] Super Plumber Run (Completed)
 
 [ ] Lava Escape
 
@@ -148,7 +148,7 @@ Entity management and score scaling.
 
 [ ] Meteor Storm
 
-[ ] Arena Brawler
+[x] Grid Bomber (Completed)
 
 [ ] Dungeon Escape
 

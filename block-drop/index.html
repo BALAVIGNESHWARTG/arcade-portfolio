@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Block Drop - LCD Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --lcd-bg: #8fa082;
+            --lcd-off: #839476;
+            --lcd-on: #2b3324;
+            --plastic: #e0e0e0;
+            --plastic-dark: #b0b0b0;
+            --btn-red: #c0392b;
+        }
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0; background-color: #222; color: var(--lcd-on);
+            font-family: 'VT323', monospace; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+        }
+
+        #device {
+            background: var(--plastic);
+            border-radius: 20px 20px 60px 20px;
+            padding: 30px 20px 80px 20px;
+            box-shadow: inset -5px -5px 15px var(--plastic-dark), 0 20px 50px rgba(0,0,0,0.8);
+            border: 2px solid #fff;
+            max-width: 400px; width: 100%;
+        }
+
+        .screen-bezel {
+            background: #555; border-radius: 10px 10px 40px 10px;
+            padding: 20px; box-shadow: inset 5px 5px 10px #222;
+        }
+
+        #game-screen {
+            background: var(--lcd-bg);
+            border: 4px solid var(--lcd-on);
+            position: relative; width: 100%; aspect-ratio: 0.75;
+            box-shadow: inset 4px 4px 10px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 5; image-rendering: pixelated; }
+
+        .hud {
+            position: absolute; right: 10px; top: 10px; width: 80px;
+            display: flex; flex-direction: column; align-items: flex-end; z-index: 10;
+        }
+
+        .hud-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; line-height: 1; text-align: right;}
+        .hud-label { font-size: 16px; margin-top: 10px; }
+        .hud-val { font-size: 24px; font-weight: bold; }
+
+        /* Controls Area */
+        .controls {
+            margin-top: 40px; display: flex; justify-content: space-between; align-items: center; padding: 0 10px;
+        }
+        
+        .dpad {
+            position: relative; width: 100px; height: 100px;
+        }
+        .dpad-btn {
+            position: absolute; background: #333; box-shadow: inset -2px -2px 5px #111, inset 2px 2px 5px #555;
+            cursor: pointer;
+        }
+        .dpad-btn:active { box-shadow: inset 2px 2px 5px #111; }
+        .dpad-up { top: 0; left: 33px; width: 34px; height: 33px; border-radius: 5px 5px 0 0; }
+        .dpad-down { bottom: 0; left: 33px; width: 34px; height: 33px; border-radius: 0 0 5px 5px; }
+        .dpad-left { top: 33px; left: 0; width: 33px; height: 34px; border-radius: 5px 0 0 5px; }
+        .dpad-right { top: 33px; right: 0; width: 33px; height: 34px; border-radius: 0 5px 5px 0; }
+        .dpad-center { top: 33px; left: 33px; width: 34px; height: 34px; background: #333; }
+
+        .action-btns {
+            display: flex; gap: 15px; transform: rotate(-20deg);
+        }
+        .act-btn {
+            width: 50px; height: 50px; border-radius: 50%; background: var(--btn-red);
+            box-shadow: inset -3px -3px 5px rgba(0,0,0,0.5), inset 3px 3px 5px rgba(255,255,255,0.4), 0 5px 0 #8e2a20;
+            display: flex; justify-content: center; align-items: center; cursor: pointer;
+        }
+        .act-btn:active { transform: translateY(5px); box-shadow: inset 3px 3px 5px rgba(0,0,0,0.5); }
+        .act-label { font-family: sans-serif; font-weight: bold; color: #555; margin-top: 5px; font-size: 12px; }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(143, 160, 130, 0.9); z-index: 20;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center;
+        }
+        h1 { font-size: 40px; margin: 0 0 20px 0; line-height: 1; }
+        p { font-size: 20px; margin-bottom: 20px; }
+        .start-btn {
+            background: transparent; border: 2px solid var(--lcd-on); color: var(--lcd-on);
+            padding: 5px 15px; font-family: 'VT323', monospace; font-size: 24px; cursor: pointer;
+        }
+        .start-btn:active { background: var(--lcd-on); color: var(--lcd-bg); }
+        .hidden { display: none !important; }
+
+        @media (max-width: 500px) {
+            #device { border-radius: 0; padding: 20px; height: 100vh; box-shadow: none; border: none; }
+            .screen-bezel { padding: 10px; border-radius: 5px; }
+            #game-screen { aspect-ratio: auto; height: 60vh; }
+        }
+    </style>
+</head>
+<body>
+    <div id="device">
+        <div class="screen-bezel">
+            <div id="game-screen">
+                <canvas id="gameCanvas"></canvas>
+                
+                <div class="hud">
+                    <div class="hud-title">BLOCK<br>DROP</div>
+                    <div class="hud-label">SCORE</div>
+                    <div class="hud-val" id="scoreEl">0</div>
+                    <div class="hud-label">LINES</div>
+                    <div class="hud-val" id="linesEl">0</div>
+                    <div class="hud-label">LEVEL</div>
+                    <div class="hud-val" id="levelEl">1</div>
+                </div>
+
+                <div id="start-modal" class="modal">
+                    <h1>BLOCK<br>DROP</h1>
+                    <p>Press A to Rotate<br>Arrows to Move</p>
+                    <button class="start-btn" id="start-btn">START</button>
+                </div>
+
+                <div id="game-over-modal" class="modal hidden">
+                    <h1>GAME OVER</h1>
+                    <p id="final-stats">Score: 0</p>
+                    <button class="start-btn" id="restart-btn">RETRY</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="dpad">
+                <div class="dpad-center"></div>
+                <div class="dpad-btn dpad-up" id="btn-up"></div>
+                <div class="dpad-btn dpad-down" id="btn-down"></div>
+                <div class="dpad-btn dpad-left" id="btn-left"></div>
+                <div class="dpad-btn dpad-right" id="btn-right"></div>
+            </div>
+            <div class="action-btns">
+                <div>
+                    <div class="act-btn" id="btn-b"></div>
+                    <div class="act-label">B</div>
+                </div>
+                <div style="margin-top: -20px;">
+                    <div class="act-btn" id="btn-a"></div>
+                    <div class="act-label">A</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const screen = document.getElementById('game-screen');
+        
+        const COLS = 10;
+        const ROWS = 20;
+        let blockSize;
+        let gridOffsetX;
+
+        function resize() {
+            let cw = screen.clientWidth;
+            let ch = screen.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+            
+            blockSize = Math.floor(ch / ROWS);
+            gridOffsetX = 10; // Left align the grid
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let isRunning = false;
+        let score = 0;
+        let lines = 0;
+        let level = 1;
+        let grid = [];
+
+        // Tetrominoes
+        const SHAPES = [
+            [], // 0
+            [[1,1,1,1]], // I (1)
+            [[1,0,0],[1,1,1]], // J (2)
+            [[0,0,1],[1,1,1]], // L (3)
+            [[1,1],[1,1]], // O (4)
+            [[0,1,1],[1,1,0]], // S (5)
+            [[0,1,0],[1,1,1]], // T (6)
+            [[1,1,0],[0,1,1]]  // Z (7)
+        ];
+
+        let piece = null;
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+
+        function initGrid() {
+            grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        }
+
+        function newPiece() {
+            let typeId = Math.floor(Math.random() * 7) + 1;
+            piece = {
+                matrix: SHAPES[typeId],
+                x: Math.floor(COLS/2) - Math.floor(SHAPES[typeId][0].length/2),
+                y: 0
+            };
+            if (collide()) {
+                gameOver();
+            }
+        }
+
+        function collide() {
+            for(let r=0; r<piece.matrix.length; r++) {
+                for(let c=0; c<piece.matrix[r].length; c++) {
+                    if (piece.matrix[r][c] !== 0) {
+                        let nx = piece.x + c;
+                        let ny = piece.y + r;
+                        if (nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && grid[ny][nx] !== 0)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function merge() {
+            for(let r=0; r<piece.matrix.length; r++) {
+                for(let c=0; c<piece.matrix[r].length; c++) {
+                    if (piece.matrix[r][c] !== 0) {
+                        if (piece.y + r >= 0) {
+                            grid[piece.y + r][piece.x + c] = 1; // 1 means solid block
+                        }
+                    }
+                }
+            }
+        }
+
+        function rotate() {
+            let orig = piece.matrix;
+            // Transpose & Reverse
+            let rotated = orig[0].map((_, colIndex) => orig.map(row => row[colIndex])).map(row => row.reverse());
+            let origX = piece.x;
+            piece.matrix = rotated;
+            if (collide()) {
+                // simple wall kick
+                piece.x++;
+                if (collide()) {
+                    piece.x -= 2;
+                    if(collide()) {
+                        piece.x = origX;
+                        piece.matrix = orig; // fail
+                    }
+                }
+            }
+        }
+
+        function clearLines() {
+            let linesCleared = 0;
+            for(let r=ROWS-1; r>=0; r--) {
+                if (grid[r].every(val => val !== 0)) {
+                    grid.splice(r, 1);
+                    grid.unshift(Array(COLS).fill(0));
+                    linesCleared++;
+                    r++; // check same row index again
+                }
+            }
+            if (linesCleared > 0) {
+                let pts = [0, 40, 100, 300, 1200];
+                score += pts[linesCleared] * level;
+                lines += linesCleared;
+                level = Math.floor(lines / 10) + 1;
+                dropInterval = Math.max(100, 1000 - (level-1)*100);
+                
+                document.getElementById('scoreEl').textContent = score;
+                document.getElementById('linesEl').textContent = lines;
+                document.getElementById('levelEl').textContent = level;
+            }
+        }
+
+        function drop() {
+            piece.y++;
+            if (collide()) {
+                piece.y--;
+                merge();
+                clearLines();
+                newPiece();
+            }
+            dropCounter = 0;
+        }
+
+        function move(dir) {
+            piece.x += dir;
+            if (collide()) piece.x -= dir;
+        }
+
+        let keys = {};
+        let fastDrop = false;
+
+        document.addEventListener('keydown', e => {
+            if(!isRunning) return;
+            if (e.key === 'ArrowLeft') move(-1);
+            if (e.key === 'ArrowRight') move(1);
+            if (e.key === 'ArrowDown') { drop(); fastDrop = true; }
+            if (e.key === 'ArrowUp' || e.key === 'x') rotate();
+        });
+        document.addEventListener('keyup', e => {
+            if (e.key === 'ArrowDown') fastDrop = false;
+        });
+
+        const bindControl = (id, actionFn, hold=false) => {
+            let el = document.getElementById(id);
+            let interval = null;
+            el.addEventListener('mousedown', e => { e.preventDefault(); actionFn(); if(hold) interval=setInterval(actionFn, 100); });
+            el.addEventListener('mouseup', e => { e.preventDefault(); if(interval) clearInterval(interval); });
+            el.addEventListener('mouseleave', e => { e.preventDefault(); if(interval) clearInterval(interval); });
+            el.addEventListener('touchstart', e => { e.preventDefault(); actionFn(); if(hold) interval=setInterval(actionFn, 100); }, {passive:false});
+            el.addEventListener('touchend', e => { e.preventDefault(); if(interval) clearInterval(interval); });
+        };
+
+        bindControl('btn-left', () => { if(isRunning) move(-1); });
+        bindControl('btn-right', () => { if(isRunning) move(1); });
+        bindControl('btn-down', () => { if(isRunning) drop(); }, true);
+        bindControl('btn-up', () => { if(isRunning) rotate(); });
+        bindControl('btn-a', () => { if(isRunning) rotate(); });
+        bindControl('btn-b', () => { if(isRunning) drop(); }, true);
+
+        function drawBlock(x, y, on) {
+            if (!on) {
+                ctx.fillStyle = 'var(--lcd-off)';
+                ctx.fillRect(x + 1, y + 1, blockSize - 2, blockSize - 2);
+            } else {
+                ctx.fillStyle = 'var(--lcd-on)';
+                ctx.fillRect(x, y, blockSize, blockSize);
+                // LCD inner square
+                ctx.fillStyle = 'var(--lcd-bg)';
+                ctx.fillRect(x + 2, y + 2, blockSize - 4, blockSize - 4);
+                ctx.fillStyle = 'var(--lcd-on)';
+                ctx.fillRect(x + 4, y + 4, blockSize - 8, blockSize - 8);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid outline
+            ctx.strokeStyle = 'var(--lcd-on)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(gridOffsetX - 2, -2, COLS*blockSize + 4, ROWS*blockSize + 4);
+
+            // Draw faint background grid
+            for(let r=0; r<ROWS; r++) {
+                for(let c=0; c<COLS; c++) {
+                    drawBlock(gridOffsetX + c*blockSize, r*blockSize, false);
+                }
+            }
+
+            // Draw merged blocks
+            for(let r=0; r<ROWS; r++) {
+                for(let c=0; c<COLS; c++) {
+                    if (grid[r][c] !== 0) {
+                        drawBlock(gridOffsetX + c*blockSize, r*blockSize, true);
+                    }
+                }
+            }
+
+            // Draw active piece
+            if (piece) {
+                for(let r=0; r<piece.matrix.length; r++) {
+                    for(let c=0; c<piece.matrix[r].length; c++) {
+                        if (piece.matrix[r][c] !== 0) {
+                            drawBlock(gridOffsetX + (piece.x + c)*blockSize, (piece.y + r)*blockSize, true);
+                        }
+                    }
+                }
+            }
+        }
+
+        function update(time = 0) {
+            if(!isRunning) return;
+            const dt = time - lastTime;
+            lastTime = time;
+
+            dropCounter += dt;
+            let currentDropInterval = fastDrop ? 50 : dropInterval;
+            
+            if (dropCounter > currentDropInterval) {
+                drop();
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function startGame() {
+            document.getElementById('start-modal').classList.add('hidden');
+            document.getElementById('game-over-modal').classList.add('hidden');
+            score = 0; lines = 0; level = 1; dropInterval = 1000;
+            document.getElementById('scoreEl').textContent = score;
+            document.getElementById('linesEl').textContent = lines;
+            document.getElementById('levelEl').textContent = level;
+            
+            initGrid();
+            newPiece();
+            isRunning = true;
+            lastTime = performance.now();
+            update();
+        }
+
+        function gameOver() {
+            isRunning = false;
+            document.getElementById('final-stats').textContent = `Score: ${score}`;
+            document.getElementById('game-over-modal').classList.remove('hidden');
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+
+        // initial draw
+        resize();
+        initGrid();
+        draw();
+    </script>
+</body>
+</html>
