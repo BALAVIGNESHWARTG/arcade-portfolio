@@ -1,1 +1,560 @@
-<!DOCTYPE html><html><head><title>Coming Soon: zombie-survival</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>zombie-survival - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nightmare Survival</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Creepster&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #000;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Creepster', cursive;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 800px; height: 100%; max-height: 800px;
+            background: #000;
+            box-shadow: 0 0 50px rgba(255,0,0,0.1);
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        canvas { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; }
+        
+        /* Two layers: ground/blood/entities (layer 1), darkness overlay (layer 2) */
+        #layer1 { z-index: 1; }
+        #layer2 { z-index: 2; pointer-events: none; }
+
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 3; padding: 20px;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        .top-stats {
+            display: flex; justify-content: space-between;
+            font-size: 30px; color: #aa0000; text-shadow: 2px 2px 0 #000;
+        }
+
+        .health-bar-container {
+            width: 200px; height: 20px; border: 2px solid #aa0000; background: #220000;
+        }
+        #health-bar {
+            width: 100%; height: 100%; background: #ff0000; transition: width 0.2s;
+        }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 80px; margin: 0 0 10px 0; color: #aa0000; text-shadow: 0 0 20px #ff0000; font-weight: normal;}
+        .modal p { font-size: 30px; margin-bottom: 40px; color: #fff;}
+        
+        .play-btn {
+            background: transparent; color: #aa0000; border: 2px solid #aa0000;
+            padding: 15px 40px; font-family: 'Creepster', cursive; font-size: 30px;
+            cursor: pointer; border-radius: 5px; letter-spacing: 2px;
+            transition: all 0.3s;
+        }
+        .play-btn:hover { background: #aa0000; color: #000; box-shadow: 0 0 30px #ff0000; }
+
+        /* On-screen sticks for mobile */
+        .controls {
+            position: absolute; bottom: 20px; left: 0; width: 100%; height: 120px;
+            display: none; justify-content: space-between; padding: 0 20px; z-index: 5;
+        }
+        @media (hover: none) and (pointer: coarse) {
+            .controls { display: flex; }
+            #game-container { cursor: default; }
+        }
+        
+        .joystick {
+            width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%;
+            position: relative; border: 2px solid rgba(255,0,0,0.3);
+        }
+        .knob {
+            width: 40px; height: 40px; background: rgba(255,0,0,0.5); border-radius: 50%;
+            position: absolute; top: 30px; left: 30px; pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Floor, Blood, Entities -->
+        <canvas id="layer1"></canvas>
+        <!-- Flashlight Darkness Overlay -->
+        <canvas id="layer2"></canvas>
+        
+        <div class="ui-layer">
+            <div class="top-stats">
+                <div class="health-bar-container"><div id="health-bar"></div></div>
+                <div>KILLS: <span id="score">0</span></div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="joystick" id="stick-move"><div class="knob" id="knob-move"></div></div>
+            <div class="joystick" id="stick-aim"><div class="knob" id="knob-aim"></div></div>
+        </div>
+
+        <div class="modal" id="menu">
+            <h1>NIGHTMARE</h1>
+            <p>Stay in the light. Survive.</p>
+            <button class="play-btn" id="start-btn">ENTER</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1>DEVOURED</h1>
+            <p>You survived <span id="final-score">0</span> horrors.</p>
+            <button class="play-btn" id="restart-btn">BLEED AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas1 = document.getElementById('layer1');
+        const ctx1 = canvas1.getContext('2d');
+        const canvas2 = document.getElementById('layer2');
+        const ctx2 = canvas2.getContext('2d');
+        
+        const container = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+        const healthBar = document.getElementById('health-bar');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let cw, ch;
+        function resize() {
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            canvas1.width = cw; canvas1.height = ch;
+            canvas2.width = cw; canvas2.height = ch;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Mobile Controls Data
+        let moveData = { active: false, dx: 0, dy: 0 };
+        let aimData = { active: false, dx: 0, dy: 0, shooting: false };
+
+        // Game State
+        let isPlaying = false;
+        let score = 0;
+        let lastTime = 0;
+        
+        // Entities
+        let player = { x: 0, y: 0, radius: 15, speed: 150, angle: 0, health: 100 };
+        let zombies = [];
+        let bullets = [];
+        let blood = []; // persistent floor stains
+        
+        let mouseX = 0, mouseY = 0;
+        let keys = { w:false, a:false, s:false, d:false };
+        let isMouseDown = false;
+        
+        let fireRate = 0.15; // sec
+        let fireTimer = 0;
+        
+        let spawnRate = 2.0;
+        let spawnTimer = 0;
+
+        function initGame() {
+            player.x = cw / 2;
+            player.y = ch / 2;
+            player.health = 100;
+            player.angle = 0;
+            
+            zombies = [];
+            bullets = [];
+            blood = []; // clear floor
+            score = 0;
+            scoreEl.textContent = score;
+            healthBar.style.width = '100%';
+            
+            spawnRate = 2.0;
+            spawnTimer = 1.0;
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnZombie() {
+            // Spawn outside the screen
+            let angle = Math.random() * Math.PI * 2;
+            let dist = Math.max(cw, ch) * 0.7; // definitely off-screen
+            
+            let hp = 1 + Math.floor(score / 20); // harder over time
+            let speed = 50 + Math.random() * 40 + (score * 0.5);
+            
+            zombies.push({
+                x: player.x + Math.cos(angle) * dist,
+                y: player.y + Math.sin(angle) * dist,
+                radius: 15,
+                speed: speed,
+                hp: hp,
+                maxHp: hp
+            });
+        }
+
+        function spawnBlood(x, y) {
+            for(let i=0; i<5; i++) {
+                blood.push({
+                    x: x + (Math.random()-0.5)*20,
+                    y: y + (Math.random()-0.5)*20,
+                    r: 2 + Math.random()*8,
+                    alpha: 0.5 + Math.random()*0.5
+                });
+            }
+            // Keep array size reasonable
+            if (blood.length > 500) blood.splice(0, 50);
+        }
+
+        // Input
+        window.addEventListener('keydown', e => {
+            let k = e.key.toLowerCase();
+            if(keys[k] !== undefined) keys[k] = true;
+        });
+        window.addEventListener('keyup', e => {
+            let k = e.key.toLowerCase();
+            if(keys[k] !== undefined) keys[k] = false;
+        });
+        container.addEventListener('mousemove', e => {
+            let rect = canvas1.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+        container.addEventListener('mousedown', () => isMouseDown = true);
+        container.addEventListener('mouseup', () => isMouseDown = false);
+        container.addEventListener('mouseleave', () => isMouseDown = false);
+
+        // Mobile Joysticks Setup
+        function setupJoystick(elId, knobId, dataObj, isAim) {
+            const el = document.getElementById(elId);
+            const knob = document.getElementById(knobId);
+            let center = {x:0, y:0};
+            
+            el.addEventListener('touchstart', e => {
+                e.preventDefault();
+                let rect = el.getBoundingClientRect();
+                center.x = rect.left + rect.width/2;
+                center.y = rect.top + rect.height/2;
+                dataObj.active = true;
+                if(isAim) dataObj.shooting = true;
+                updateStick(e.touches[0]);
+            }, {passive: false});
+
+            el.addEventListener('touchmove', e => {
+                e.preventDefault();
+                updateStick(e.touches[0]);
+            }, {passive: false});
+
+            function endStick(e) {
+                e.preventDefault();
+                dataObj.active = false;
+                dataObj.dx = 0; dataObj.dy = 0;
+                if(isAim) dataObj.shooting = false;
+                knob.style.transform = `translate(0px, 0px)`;
+            }
+            el.addEventListener('touchend', endStick);
+            el.addEventListener('touchcancel', endStick);
+
+            function updateStick(touch) {
+                let dx = touch.clientX - center.x;
+                let dy = touch.clientY - center.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                let maxDist = 30; // inner radius
+                
+                if (dist > maxDist) {
+                    dx = (dx / dist) * maxDist;
+                    dy = (dy / dist) * maxDist;
+                }
+                
+                knob.style.transform = `translate(${dx}px, ${dy}px)`;
+                
+                // Normalize data to -1..1
+                dataObj.dx = dx / maxDist;
+                dataObj.dy = dy / maxDist;
+            }
+        }
+        setupJoystick('stick-move', 'knob-move', moveData, false);
+        setupJoystick('stick-aim', 'knob-aim', aimData, true);
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function update(dt) {
+            // Player Move
+            let vx = 0, vy = 0;
+            if (keys.w) vy -= 1;
+            if (keys.s) vy += 1;
+            if (keys.a) vx -= 1;
+            if (keys.d) vx += 1;
+            
+            // Override with mobile if active
+            if (moveData.active) {
+                vx = moveData.dx;
+                vy = moveData.dy;
+            } else if (vx !== 0 || vy !== 0) {
+                // Normalize keyboard
+                let len = Math.sqrt(vx*vx + vy*vy);
+                vx /= len; vy /= len;
+            }
+
+            player.x += vx * player.speed * dt;
+            player.y += vy * player.speed * dt;
+            
+            // Bounds
+            player.x = Math.max(player.radius, Math.min(cw - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(ch - player.radius, player.y));
+
+            // Player Aim
+            if (aimData.active) {
+                player.angle = Math.atan2(aimData.dy, aimData.dx);
+            } else {
+                player.angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+            }
+
+            // Shooting
+            fireTimer -= dt;
+            if ((isMouseDown || aimData.shooting) && fireTimer <= 0) {
+                fireTimer = fireRate;
+                // Add bullet
+                const BULLET_SPEED = 1000;
+                bullets.push({
+                    x: player.x + Math.cos(player.angle) * 20,
+                    y: player.y + Math.sin(player.angle) * 20,
+                    vx: Math.cos(player.angle) * BULLET_SPEED,
+                    vy: Math.sin(player.angle) * BULLET_SPEED,
+                    radius: 3
+                });
+                
+                // Recoil effect
+                player.x -= Math.cos(player.angle) * 3;
+                player.y -= Math.sin(player.angle) * 3;
+            }
+
+            // Bullets
+            for(let i=bullets.length-1; i>=0; i--) {
+                let b = bullets[i];
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+                
+                // Off screen
+                if (b.x < 0 || b.x > cw || b.y < 0 || b.y > ch) {
+                    bullets.splice(i, 1);
+                    continue;
+                }
+                
+                // Collision with zombies
+                let hit = false;
+                for(let j=zombies.length-1; j>=0; j--) {
+                    let z = zombies[j];
+                    let dx = z.x - b.x;
+                    let dy = z.y - b.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < z.radius + b.radius) {
+                        z.hp--;
+                        spawnBlood(z.x, z.y); // slight bleed on hit
+                        // Knockback
+                        z.x += b.vx * 0.01;
+                        z.y += b.vy * 0.01;
+                        
+                        if (z.hp <= 0) {
+                            score++;
+                            scoreEl.textContent = score;
+                            spawnBlood(z.x, z.y); // big bleed on death
+                            zombies.splice(j, 1);
+                        }
+                        hit = true;
+                        break;
+                    }
+                }
+                if (hit) bullets.splice(i, 1);
+            }
+
+            // Zombies
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+                spawnZombie();
+                spawnRate = Math.max(0.3, 2.0 - (score * 0.02)); // faster spawns
+                spawnTimer = spawnRate;
+            }
+
+            for(let i=zombies.length-1; i>=0; i--) {
+                let z = zombies[i];
+                // Move towards player
+                let angleToPlayer = Math.atan2(player.y - z.y, player.x - z.x);
+                z.x += Math.cos(angleToPlayer) * z.speed * dt;
+                z.y += Math.sin(angleToPlayer) * z.speed * dt;
+                
+                // Collision with player
+                let dx = player.x - z.x;
+                let dy = player.y - z.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < player.radius + z.radius) {
+                    player.health -= 20 * dt; // damage over time
+                    healthBar.style.width = Math.max(0, player.health) + '%';
+                    spawnBlood(player.x, player.y);
+                    
+                    if (player.health <= 0) {
+                        isPlaying = false;
+                        document.getElementById('final-score').textContent = score;
+                        gameOverEl.classList.add('active');
+                    }
+                }
+            }
+        }
+
+        function drawLayer1() {
+            // Floor
+            ctx1.fillStyle = '#111'; // very dark gray floor
+            ctx1.fillRect(0, 0, cw, ch);
+            
+            // Grid lines to give depth
+            ctx1.strokeStyle = '#1a1a1a';
+            ctx1.lineWidth = 1;
+            for(let i=0; i<cw; i+=50) { ctx1.beginPath(); ctx1.moveTo(i, 0); ctx1.lineTo(i, ch); ctx1.stroke(); }
+            for(let i=0; i<ch; i+=50) { ctx1.beginPath(); ctx1.moveTo(0, i); ctx1.lineTo(cw, i); ctx1.stroke(); }
+
+            // Blood
+            for(let b of blood) {
+                ctx1.fillStyle = `rgba(138, 3, 3, ${b.alpha})`;
+                ctx1.beginPath();
+                ctx1.arc(b.x, b.y, b.r, 0, Math.PI*2);
+                ctx1.fill();
+            }
+
+            // Bullets
+            ctx1.fillStyle = '#ffff00';
+            for(let b of bullets) {
+                ctx1.beginPath();
+                ctx1.arc(b.x, b.y, b.radius, 0, Math.PI*2);
+                ctx1.fill();
+            }
+
+            // Zombies
+            for(let z of zombies) {
+                let angle = Math.atan2(player.y - z.y, player.x - z.x);
+                ctx1.save();
+                ctx1.translate(z.x, z.y);
+                ctx1.rotate(angle);
+                
+                // Zombie Body
+                ctx1.fillStyle = '#3a5f3a';
+                ctx1.beginPath();
+                ctx1.arc(0, 0, z.radius, 0, Math.PI*2);
+                ctx1.fill();
+                
+                // Arms reaching out
+                ctx1.fillStyle = '#2d4a2d';
+                ctx1.fillRect(0, -z.radius-2, 18, 6);
+                ctx1.fillRect(0, z.radius-4, 18, 6);
+                
+                ctx1.restore();
+            }
+
+            // Player
+            ctx1.save();
+            ctx1.translate(player.x, player.y);
+            ctx1.rotate(player.angle);
+            
+            // Body
+            ctx1.fillStyle = '#1e90ff';
+            ctx1.beginPath();
+            ctx1.arc(0, 0, player.radius, 0, Math.PI*2);
+            ctx1.fill();
+            
+            // Gun
+            ctx1.fillStyle = '#555';
+            ctx1.fillRect(5, -4, 20, 8);
+            
+            ctx1.restore();
+        }
+
+        function drawLayer2() {
+            // Darkness layer with flashlight cutout
+            ctx2.clearRect(0, 0, cw, ch);
+            
+            // Fill entire screen with black
+            ctx2.fillStyle = '#020202';
+            ctx2.fillRect(0, 0, cw, ch);
+            
+            // Carve out the light using destination-out
+            ctx2.globalCompositeOperation = 'destination-out';
+            
+            // Create conic/radial gradient for flashlight
+            // We'll use an arc path to represent the beam, and fill it with a radial gradient
+            
+            let beamLength = 400;
+            let beamWidth = Math.PI / 3; // 60 degrees spread
+            
+            ctx2.save();
+            ctx2.translate(player.x, player.y);
+            ctx2.rotate(player.angle);
+            
+            // Flashlight Beam
+            let grad = ctx2.createRadialGradient(0, 0, 0, 0, 0, beamLength);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.5)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            ctx2.fillStyle = grad;
+            ctx2.beginPath();
+            ctx2.moveTo(0, 0);
+            ctx2.arc(0, 0, beamLength, -beamWidth/2, beamWidth/2);
+            ctx2.closePath();
+            ctx2.fill();
+            
+            // Ambient light around player (so they aren't completely blind behind them)
+            let ambient = ctx2.createRadialGradient(0, 0, 0, 0, 0, 50);
+            ambient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+            ambient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx2.fillStyle = ambient;
+            ctx2.beginPath();
+            ctx2.arc(0, 0, 50, 0, Math.PI*2);
+            ctx2.fill();
+            
+            ctx2.restore();
+            
+            // Reset composition
+            ctx2.globalCompositeOperation = 'source-over';
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+            drawLayer1();
+            drawLayer2();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Show menu
+        menuEl.classList.add('active');
+        initGame();
+        isPlaying = false; // Stop immediately for menu
+        drawLayer1();
+        drawLayer2();
+    </script>
+</body>
+</html>

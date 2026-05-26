@@ -1,1 +1,401 @@
-<!DOCTYPE html><html><head><title>Coming Soon: rhythm-tap</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>rhythm-tap - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Synth Rhythm</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Varela+Round&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #0b0213;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Varela Round', sans-serif;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 400px; height: 100%; max-height: 800px;
+            background: linear-gradient(to bottom, #110222 0%, #290849 100%);
+            box-shadow: 0 0 50px rgba(255,0,255,0.2);
+            overflow: hidden;
+            border-left: 2px solid #f0f;
+            border-right: 2px solid #0ff;
+        }
+
+        /* Perspective Grid */
+        .grid {
+            position: absolute; bottom: 0; left: -50%; width: 200%; height: 50%;
+            background-image: 
+                linear-gradient(rgba(255, 0, 255, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.3) 1px, transparent 1px);
+            background-size: 30px 30px;
+            transform: perspective(300px) rotateX(60deg);
+            animation: scrollGrid 1s linear infinite;
+            z-index: 0; pointer-events: none;
+        }
+
+        @keyframes scrollGrid {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 30px; }
+        }
+
+        canvas { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; z-index: 1; }
+
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 2; padding: 20px;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        .top-stats {
+            display: flex; justify-content: space-between;
+            font-size: 24px; text-shadow: 0 0 10px #f0f;
+        }
+        
+        .combo { color: #0ff; text-shadow: 0 0 10px #0ff; }
+
+        /* Touch Controls */
+        .controls {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 15%;
+            display: flex; z-index: 5;
+        }
+        .btn-zone {
+            flex: 1; border-top: 2px solid rgba(255,255,255,0.2); border-right: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center;
+            color: rgba(255,255,255,0.5); font-size: 20px;
+            transition: background 0.1s;
+        }
+        .btn-zone:last-child { border-right: none; }
+        .btn-zone.active { background: rgba(255,0,255,0.4); color: #fff; box-shadow: inset 0 0 20px #f0f; }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 2, 19, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 50px; margin: 0 0 10px 0; color: #0ff; text-shadow: 0 0 20px #0ff;}
+        .modal p { font-size: 18px; margin-bottom: 40px; color: #f0f; text-shadow: 0 0 10px #f0f;}
+        
+        .play-btn {
+            background: transparent; color: #fff; border: 2px solid #0ff;
+            padding: 15px 40px; font-family: 'Varela Round', sans-serif; font-size: 20px;
+            cursor: pointer; border-radius: 5px; text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(0,255,255,0.4), inset 0 0 10px rgba(0,255,255,0.2);
+            transition: all 0.2s;
+        }
+        .play-btn:active { background: #0ff; color: #000; box-shadow: 0 0 30px #0ff; }
+
+        .hit-text {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 30px; font-weight: bold; opacity: 0; transition: opacity 0.1s, transform 0.2s;
+            text-transform: uppercase;
+        }
+        .hit-text.show { opacity: 1; transform: translate(-50%, -60%); }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="grid"></div>
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="ui-layer">
+            <div class="top-stats">
+                <div>SCORE: <span id="score">0</span></div>
+                <div class="combo">x<span id="combo">0</span></div>
+            </div>
+            
+            <div class="hit-text" id="hit-text">PERFECT!</div>
+        </div>
+        
+        <div class="controls">
+            <div class="btn-zone" data-lane="0">D</div>
+            <div class="btn-zone" data-lane="1">F</div>
+            <div class="btn-zone" data-lane="2">J</div>
+            <div class="btn-zone" data-lane="3">K</div>
+        </div>
+
+        <div class="modal" id="menu">
+            <h1>SYNTH TAP</h1>
+            <p>Tap D, F, J, K or use touch controls.</p>
+            <button class="play-btn" id="start-btn">ENGAGE</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1>SYSTEM FAIL</h1>
+            <p>Score: <span id="final-score">0</span></p>
+            <button class="play-btn" id="restart-btn">REBOOT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+        const comboEl = document.getElementById('combo');
+        const hitTextEl = document.getElementById('hit-text');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        const btnZones = document.querySelectorAll('.btn-zone');
+        
+        let cw, ch;
+        function resize() {
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game State
+        let isPlaying = false;
+        let score = 0;
+        let combo = 0;
+        let health = 100;
+        let lastTime = 0;
+        
+        let laneWidth = 0;
+        let hitY = 0;
+        let hitTolerance = 60; // pixels
+
+        let notes = [];
+        let noteSpeed = 400; // px/sec
+        let spawnTimer = 0;
+        let spawnInterval = 0.6; // seconds
+
+        // Controls Map
+        const keysMap = { 'd': 0, 'f': 1, 'j': 2, 'k': 3 };
+
+        function initGame() {
+            laneWidth = cw / 4;
+            hitY = ch * 0.85 - 20; // Just above controls
+            
+            score = 0;
+            combo = 0;
+            health = 100;
+            notes = [];
+            noteSpeed = 400;
+            spawnInterval = 0.6;
+            
+            scoreEl.textContent = score;
+            comboEl.textContent = combo;
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnNote() {
+            let lane = Math.floor(Math.random() * 4);
+            notes.push({ lane: lane, y: -50, hit: false });
+        }
+
+        function showHitText(text, color) {
+            hitTextEl.textContent = text;
+            hitTextEl.style.color = color;
+            hitTextEl.style.textShadow = `0 0 10px ${color}`;
+            hitTextEl.classList.remove('show');
+            void hitTextEl.offsetWidth; // trigger reflow
+            hitTextEl.classList.add('show');
+        }
+
+        function triggerLane(laneIdx) {
+            if (!isPlaying) return;
+            
+            // Visual feedback
+            btnZones[laneIdx].classList.add('active');
+            setTimeout(() => btnZones[laneIdx].classList.remove('active'), 100);
+
+            // Logic
+            let hitIndex = -1;
+            let minDiff = Infinity;
+            
+            for (let i = 0; i < notes.length; i++) {
+                if (notes[i].lane === laneIdx && !notes[i].hit) {
+                    let diff = Math.abs(notes[i].y - hitY);
+                    if (diff < hitTolerance && diff < minDiff) {
+                        minDiff = diff;
+                        hitIndex = i;
+                    }
+                }
+            }
+
+            if (hitIndex !== -1) {
+                // Hit!
+                notes[hitIndex].hit = true;
+                combo++;
+                
+                let pts = 10;
+                if (minDiff < hitTolerance * 0.3) {
+                    showHitText("PERFECT", "#0ff");
+                    pts = 30;
+                } else if (minDiff < hitTolerance * 0.7) {
+                    showHitText("GREAT", "#f0f");
+                    pts = 20;
+                } else {
+                    showHitText("GOOD", "#fff");
+                }
+                
+                score += pts * (1 + Math.floor(combo / 10));
+                scoreEl.textContent = score;
+                comboEl.textContent = combo;
+                
+                health = Math.min(100, health + 2);
+                
+                // Add particle effect or just remove it
+                notes.splice(hitIndex, 1);
+            } else {
+                // Miss (pressed but nothing there)
+                combo = 0;
+                comboEl.textContent = combo;
+                health -= 5;
+                showHitText("MISS", "#f00");
+                if (health <= 0) gameOver();
+            }
+        }
+
+        // Event Listeners
+        document.addEventListener('keydown', e => {
+            let key = e.key.toLowerCase();
+            if (keysMap[key] !== undefined) triggerLane(keysMap[key]);
+        });
+
+        btnZones.forEach(btn => {
+            btn.addEventListener('touchstart', e => {
+                e.preventDefault();
+                triggerLane(parseInt(btn.dataset.lane));
+            }, {passive: false});
+            btn.addEventListener('mousedown', e => {
+                e.preventDefault();
+                triggerLane(parseInt(btn.dataset.lane));
+            });
+        });
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function gameOver() {
+            isPlaying = false;
+            document.getElementById('final-score').textContent = score;
+            gameOverEl.classList.add('active');
+        }
+
+        function update(dt) {
+            // Spawn logic
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+                spawnNote();
+                // Randomize slightly for rhythm variation
+                spawnTimer = spawnInterval + (Math.random() * 0.4 - 0.2);
+            }
+            
+            // Difficulty ramp
+            if (score > 1000) noteSpeed = 500;
+            if (score > 3000) { noteSpeed = 600; spawnInterval = 0.5; }
+            if (score > 6000) { noteSpeed = 750; spawnInterval = 0.4; }
+
+            // Move notes
+            for (let i = notes.length - 1; i >= 0; i--) {
+                notes[i].y += noteSpeed * dt;
+                
+                // Miss (fell past hit zone)
+                if (notes[i].y > hitY + hitTolerance && !notes[i].hit) {
+                    combo = 0;
+                    comboEl.textContent = combo;
+                    health -= 10;
+                    showHitText("MISS", "#f00");
+                    notes.splice(i, 1);
+                    if (health <= 0) gameOver();
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Draw Lanes
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.lineWidth = 2;
+            for(let i=1; i<4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * laneWidth, 0);
+                ctx.lineTo(i * laneWidth, ch);
+                ctx.stroke();
+            }
+
+            // Draw Hit Zone
+            ctx.fillStyle = 'rgba(255, 0, 255, 0.1)';
+            ctx.fillRect(0, hitY - 15, cw, 30);
+            ctx.strokeStyle = '#f0f';
+            ctx.beginPath();
+            ctx.moveTo(0, hitY);
+            ctx.lineTo(cw, hitY);
+            ctx.stroke();
+
+            // Draw Health bar at the very top (thin line)
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, cw, 4);
+            ctx.fillStyle = health > 30 ? '#0ff' : '#f00';
+            ctx.fillRect(0, 0, cw * (health / 100), 4);
+
+            // Draw Notes
+            for (let n of notes) {
+                let x = n.lane * laneWidth + (laneWidth * 0.1);
+                let w = laneWidth * 0.8;
+                let h = 20; // thickness
+                
+                // Glow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#0ff';
+                ctx.fillStyle = '#fff';
+                
+                // Slight curve for perspective illusion
+                ctx.beginPath();
+                ctx.roundRect(x, n.y - h/2, w, h, 5);
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+                
+                // Trail
+                let gradient = ctx.createLinearGradient(0, n.y - h/2, 0, n.y - h/2 - 100);
+                gradient.addColorStop(0, 'rgba(0, 255, 255, 0.5)');
+                gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x + 5, n.y - h/2 - 100, w - 10, 100);
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Show menu
+        menuEl.classList.add('active');
+        initGame();
+        isPlaying = false;
+        draw();
+    </script>
+</body>
+</html>

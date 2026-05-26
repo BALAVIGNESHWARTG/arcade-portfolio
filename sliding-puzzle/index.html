@@ -1,1 +1,272 @@
-<!DOCTYPE html><html><head><title>Coming Soon: sliding-puzzle</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>sliding-puzzle - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Holo Slide - Puzzle Protocol</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #050a15;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            color: #0ff;
+        }
+
+        /* Animated Cyber Background */
+        .cyber-bg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(0, 255, 255, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(255, 0, 255, 0.15), transparent 25%);
+        }
+        .grid-lines {
+            position: absolute; width: 200%; height: 200%; top: -50%; left: -50%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: moveGrid 10s linear infinite;
+        }
+        @keyframes moveGrid {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(40px) translateZ(-200px); }
+        }
+
+        .container {
+            position: relative; width: 100%; max-width: 400px;
+            padding: 20px; text-align: center;
+        }
+
+        .header { margin-bottom: 20px; }
+        .header h1 { 
+            margin: 0; font-size: 32px; font-weight: 900; 
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff; letter-spacing: 2px;
+        }
+        .header p { 
+            margin: 10px 0 0 0; font-size: 14px; color: #aaffff; letter-spacing: 1px;
+        }
+
+        .board {
+            width: 100%; aspect-ratio: 1;
+            display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+            gap: 10px; padding: 10px;
+            background: rgba(0, 25, 40, 0.4);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(0, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            position: relative;
+        }
+
+        .tile {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; font-weight: 700;
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 255, 255, 0.1), inset 0 0 10px rgba(0, 255, 255, 0.2);
+            color: #fff; text-shadow: 0 0 5px #0ff;
+            cursor: pointer;
+            transition: transform 0.1s, background 0.3s, box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .tile::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg) translate(-100%, 100%);
+            transition: transform 0.5s;
+        }
+        .tile:hover::before { transform: rotate(45deg) translate(100%, -100%); }
+
+        .tile:hover {
+            background: rgba(0, 255, 255, 0.15);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4), inset 0 0 15px rgba(0, 255, 255, 0.4);
+            transform: scale(0.98);
+        }
+
+        .tile.empty {
+            background: transparent; border: 1px dashed rgba(0, 255, 255, 0.2);
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            cursor: default; backdrop-filter: none;
+        }
+        .tile.empty:hover { transform: none; box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5); }
+        .tile.empty::before { display: none; }
+
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 10, 20, 0.9); backdrop-filter: blur(8px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+            z-index: 100;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h2 { font-size: 40px; margin: 0 0 20px 0; text-shadow: 0 0 20px #0ff;}
+        .modal p { font-size: 18px; margin-bottom: 30px; color: #aaffff;}
+        
+        .btn {
+            background: transparent; color: #0ff; border: 2px solid #0ff;
+            padding: 12px 30px; font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: bold;
+            cursor: pointer; border-radius: 5px; text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3), inset 0 0 10px rgba(0, 255, 255, 0.2);
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #0ff; color: #050a15; box-shadow: 0 0 30px #0ff; }
+        
+        .stats { margin-top: 20px; display: flex; justify-content: space-around; font-size: 16px; color: #aaffff; }
+    </style>
+</head>
+<body>
+
+    <div class="cyber-bg"><div class="grid-lines"></div></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>HOLO SLIDE</h1>
+            <p>SYSTEM PROTOCOL: ARRANGE 1-15</p>
+        </div>
+
+        <div class="board" id="board"></div>
+
+        <div class="stats">
+            <div>MOVES: <span id="moves">0</span></div>
+            <div>TIME: <span id="time">00:00</span></div>
+        </div>
+    </div>
+
+    <div class="modal" id="game-over">
+        <h2>DECRYPTED</h2>
+        <p>Protocol restored in <span id="final-moves">0</span> moves.</p>
+        <button class="btn" onclick="initGame()">Re-Encrypt</button>
+    </div>
+
+    <script>
+        const boardEl = document.getElementById('board');
+        const movesEl = document.getElementById('moves');
+        const timeEl = document.getElementById('time');
+        const modalEl = document.getElementById('game-over');
+
+        let tiles = []; // 1D array of 16 items. 16 represents the empty space.
+        let moves = 0;
+        let timeElapsed = 0;
+        let timer = null;
+        let isPlaying = false;
+
+        function initGame() {
+            clearInterval(timer);
+            isPlaying = true;
+            moves = 0;
+            timeElapsed = 0;
+            movesEl.textContent = moves;
+            timeEl.textContent = '00:00';
+            modalEl.classList.remove('active');
+            
+            // Create solved state
+            tiles = Array.from({length: 16}, (_, i) => i + 1);
+            
+            // Shuffle (make sure it's solvable)
+            shuffleBoard();
+            
+            startTimer();
+            renderBoard();
+        }
+
+        // To ensure the puzzle is solvable, we perform random valid moves from the solved state
+        function shuffleBoard() {
+            let emptyIdx = 15;
+            for(let i=0; i<150; i++) {
+                let validMoves = getValidMoves(emptyIdx);
+                let randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+                
+                // Swap
+                [tiles[emptyIdx], tiles[randomMove]] = [tiles[randomMove], tiles[emptyIdx]];
+                emptyIdx = randomMove;
+            }
+        }
+
+        function getValidMoves(emptyIdx) {
+            let moves = [];
+            let row = Math.floor(emptyIdx / 4);
+            let col = emptyIdx % 4;
+            
+            if (row > 0) moves.push(emptyIdx - 4); // up
+            if (row < 3) moves.push(emptyIdx + 4); // down
+            if (col > 0) moves.push(emptyIdx - 1); // left
+            if (col < 3) moves.push(emptyIdx + 1); // right
+            
+            return moves;
+        }
+
+        function renderBoard() {
+            boardEl.innerHTML = '';
+            tiles.forEach((val, idx) => {
+                const tileEl = document.createElement('div');
+                tileEl.classList.add('tile');
+                
+                if (val === 16) {
+                    tileEl.classList.add('empty');
+                } else {
+                    tileEl.textContent = val;
+                    tileEl.addEventListener('click', () => handleTileClick(idx));
+                }
+                boardEl.appendChild(tileEl);
+            });
+        }
+
+        function handleTileClick(idx) {
+            if (!isPlaying) return;
+            
+            let emptyIdx = tiles.indexOf(16);
+            let validMoves = getValidMoves(emptyIdx);
+            
+            if (validMoves.includes(idx)) {
+                // Swap
+                [tiles[emptyIdx], tiles[idx]] = [tiles[idx], tiles[emptyIdx]];
+                moves++;
+                movesEl.textContent = moves;
+                renderBoard();
+                checkWin();
+            }
+        }
+
+        function checkWin() {
+            let win = true;
+            for(let i=0; i<15; i++) {
+                if(tiles[i] !== i + 1) {
+                    win = false;
+                    break;
+                }
+            }
+            if(win) {
+                isPlaying = false;
+                clearInterval(timer);
+                setTimeout(() => {
+                    document.getElementById('final-moves').textContent = moves;
+                    modalEl.classList.add('active');
+                }, 500);
+            }
+        }
+
+        function startTimer() {
+            timer = setInterval(() => {
+                timeElapsed++;
+                let m = Math.floor(timeElapsed / 60).toString().padStart(2, '0');
+                let s = (timeElapsed % 60).toString().padStart(2, '0');
+                timeEl.textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        // Start initial setup
+        initGame();
+    </script>
+</body>
+</html>

@@ -1,1 +1,344 @@
-<!DOCTYPE html><html><head><title>Coming Soon: lava-escape</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>lava-escape - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lava Escape</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #111;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 450px; height: 100%; max-height: 800px;
+            background: #2b0b0b;
+            border: 4px solid #5a1818;
+            box-shadow: 0 0 30px #ff330044;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            align-items: center; justify-content: space-between; padding: 20px;
+        }
+
+        .score-display {
+            font-size: 24px; color: #ffeb3b; text-shadow: 2px 2px 0 #000;
+        }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 28px; margin: 0 0 20px 0; color: #ff3b3b; text-shadow: 2px 2px 0 #000; line-height: 1.5;}
+        .modal p { font-size: 14px; margin-bottom: 40px; color: #ccc; line-height: 1.5;}
+        
+        .btn {
+            background: #ff3b3b; color: #fff; border: 4px solid #fff;
+            padding: 15px 30px; font-family: 'Press Start 2P', cursive; font-size: 16px;
+            cursor: pointer; text-transform: uppercase;
+            box-shadow: inset -4px -4px 0 rgba(0,0,0,0.3);
+        }
+        .btn:active { box-shadow: inset 4px 4px 0 rgba(0,0,0,0.3); }
+
+        /* Mobile Controls Overlay */
+        .controls {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 50%;
+            display: flex; z-index: 5;
+        }
+        .ctrl-left, .ctrl-right { width: 50%; height: 100%; }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-layer">
+            <div class="score-display">SCORE: <span id="score">0</span></div>
+        </div>
+        
+        <div class="controls">
+            <div class="ctrl-left" id="btn-left"></div>
+            <div class="ctrl-right" id="btn-right"></div>
+        </div>
+
+        <div class="modal" id="menu">
+            <h1>LAVA<br>ESCAPE</h1>
+            <p>Tap Left/Right side<br>to jump.</p>
+            <button class="btn" id="start-btn">START</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1>MELTED!</h1>
+            <p>Score: <span id="final-score">0</span></p>
+            <button class="btn" id="restart-btn">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let cw, ch;
+        function resize() {
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            // Logical resolution for pixel art feel
+            canvas.width = 300;
+            canvas.height = Math.floor(300 * (ch / cw));
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game State
+        let isPlaying = false;
+        let score = 0;
+        let lastTime = 0;
+        let cameraY = 0;
+        
+        // Constants
+        const GRAVITY = 800; // px/s^2
+        const JUMP_FORCE = -400;
+        const MOVE_SPEED = 150;
+        const LAVA_SPEED_BASE = 50;
+
+        // Entities
+        let player = { x: 0, y: 0, w: 16, h: 16, vx: 0, vy: 0 };
+        let platforms = [];
+        let lava = { y: 0, speed: LAVA_SPEED_BASE, particles: [] };
+
+        let keys = { left: false, right: false };
+
+        function initGame() {
+            player.x = canvas.width / 2 - 8;
+            player.y = canvas.height - 50;
+            player.vx = 0;
+            player.vy = 0;
+            
+            cameraY = canvas.height; // virtual Y of bottom of screen
+            lava.y = cameraY + 200; // starts below screen
+            lava.speed = LAVA_SPEED_BASE;
+            lava.particles = [];
+            
+            platforms = [];
+            // Initial platform under player
+            platforms.push({ x: canvas.width/2 - 25, y: canvas.height - 20, w: 50, h: 10 });
+            
+            // Generate some platforms upwards
+            let curY = canvas.height - 60;
+            while(curY > cameraY - canvas.height - 200) {
+                spawnPlatform(curY);
+                curY -= (40 + Math.random() * 40);
+            }
+
+            score = 0;
+            scoreEl.textContent = score;
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnPlatform(y) {
+            let w = 30 + Math.random() * 40;
+            let x = Math.random() * (canvas.width - w);
+            platforms.push({ x: x, y: y, w: w, h: 10 });
+        }
+
+        // Controls
+        document.addEventListener('keydown', e => {
+            if(e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+            if(e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+        });
+        document.addEventListener('keyup', e => {
+            if(e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+            if(e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+        });
+
+        // Touch zones
+        const btnL = document.getElementById('btn-left');
+        const btnR = document.getElementById('btn-right');
+        
+        btnL.addEventListener('touchstart', (e) => { e.preventDefault(); keys.left = true; }, {passive: false});
+        btnL.addEventListener('touchend', (e) => { e.preventDefault(); keys.left = false; });
+        btnL.addEventListener('mousedown', (e) => { e.preventDefault(); keys.left = true; });
+        btnL.addEventListener('mouseup', (e) => { e.preventDefault(); keys.left = false; });
+        btnL.addEventListener('mouseleave', (e) => { e.preventDefault(); keys.left = false; });
+
+        btnR.addEventListener('touchstart', (e) => { e.preventDefault(); keys.right = true; }, {passive: false});
+        btnR.addEventListener('touchend', (e) => { e.preventDefault(); keys.right = false; });
+        btnR.addEventListener('mousedown', (e) => { e.preventDefault(); keys.right = true; });
+        btnR.addEventListener('mouseup', (e) => { e.preventDefault(); keys.right = false; });
+        btnR.addEventListener('mouseleave', (e) => { e.preventDefault(); keys.right = false; });
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function gameOver() {
+            isPlaying = false;
+            document.getElementById('final-score').textContent = score;
+            gameOverEl.classList.add('active');
+        }
+
+        function update(dt) {
+            // Player movement
+            if (keys.left) player.vx = -MOVE_SPEED;
+            else if (keys.right) player.vx = MOVE_SPEED;
+            else player.vx = 0;
+
+            player.vy += GRAVITY * dt;
+            player.x += player.vx * dt;
+            player.y += player.vy * dt;
+
+            // Screen Wrap
+            if (player.x > canvas.width) player.x = -player.w;
+            if (player.x + player.w < 0) player.x = canvas.width;
+
+            // Platform Collision (only when falling)
+            if (player.vy > 0) {
+                for (let p of platforms) {
+                    if (player.x < p.x + p.w && player.x + player.w > p.x &&
+                        player.y + player.h > p.y && player.y + player.h - (player.vy * dt) <= p.y) {
+                        player.y = p.y - player.h;
+                        player.vy = JUMP_FORCE;
+                    }
+                }
+            }
+
+            // Camera logic (scroll up if player goes high)
+            let screenY = player.y - (cameraY - canvas.height);
+            if (screenY < canvas.height * 0.4) {
+                let diff = (canvas.height * 0.4) - screenY;
+                cameraY -= diff;
+                score += Math.floor(diff / 10);
+                scoreEl.textContent = score;
+            }
+
+            // Generate new platforms at the top
+            let highestPlatform = platforms.length > 0 ? platforms[platforms.length-1].y : cameraY;
+            if (highestPlatform > cameraY - canvas.height) {
+                spawnPlatform(highestPlatform - (40 + Math.random() * 40));
+            }
+
+            // Remove platforms below lava
+            platforms = platforms.filter(p => p.y < lava.y + 50);
+
+            // Lava logic
+            lava.speed = LAVA_SPEED_BASE + (score * 0.1); // gets faster
+            lava.y -= lava.speed * dt;
+            
+            // Ensure lava doesn't fall too far behind camera
+            if (lava.y > cameraY + 200) lava.y = cameraY + 200;
+
+            // Lava particles
+            if (Math.random() < 0.2) {
+                lava.particles.push({
+                    x: Math.random() * canvas.width,
+                    y: lava.y,
+                    vx: (Math.random() - 0.5) * 20,
+                    vy: -20 - Math.random() * 50,
+                    life: 1.0
+                });
+            }
+            for(let i=lava.particles.length-1; i>=0; i--) {
+                let p = lava.particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= dt;
+                if(p.life <= 0) lava.particles.splice(i, 1);
+            }
+
+            // Death conditions
+            if (player.y + player.h > lava.y || player.y > cameraY) {
+                gameOver();
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#2b0b0b'; // bg
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            // Translate camera
+            ctx.translate(0, -(cameraY - canvas.height));
+
+            // Draw Platforms
+            for (let p of platforms) {
+                ctx.fillStyle = '#5a1818';
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+                // Highlight
+                ctx.fillStyle = '#8b2b2b';
+                ctx.fillRect(p.x, p.y, p.w, 2);
+            }
+
+            // Draw Player
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            // Player eyes
+            ctx.fillStyle = '#000';
+            if(player.vx >= 0) {
+                ctx.fillRect(player.x + 10, player.y + 4, 2, 2);
+            } else {
+                ctx.fillRect(player.x + 4, player.y + 4, 2, 2);
+            }
+
+            // Draw Lava
+            let lavaScreenY = lava.y;
+            ctx.fillStyle = '#ff3b3b';
+            ctx.fillRect(0, lavaScreenY, canvas.width, cameraY + 500 - lavaScreenY); // draw very deep
+            // Lava top gradient / bubbles
+            ctx.fillStyle = '#ff9800';
+            ctx.fillRect(0, lavaScreenY, canvas.width, 4);
+            
+            // Lava Particles
+            for(let p of lava.particles) {
+                ctx.fillStyle = `rgba(255, 152, 0, ${p.life})`;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            }
+
+            ctx.restore();
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initial Draw
+        menuEl.classList.add('active');
+        ctx.fillStyle = '#2b0b0b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    </script>
+</body>
+</html>

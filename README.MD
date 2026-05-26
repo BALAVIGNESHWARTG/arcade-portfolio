@@ -70,7 +70,7 @@ Algorithmic thinking and state management.
 
 [x] Memory Flip (Completed)
 
-[ ] Sliding Puzzle
+[x] Sliding Puzzle (Completed)
 
 [ ] Sudoku
 
@@ -98,7 +98,7 @@ Touch events and precision timing.
 
 [x] Cyber Ninja (Completed)
 
-[ ] Rhythm Tap
+[x] Rhythm Tap (Completed)
 
 [ ] Speed Clicker
 
@@ -116,7 +116,7 @@ Gravity, velocity, and collision detection.
 
 [x] Super Plumber Run (Completed)
 
-[ ] Lava Escape
+[x] Lava Escape (Completed)
 
 [ ] Ladder Climb
 
@@ -138,7 +138,7 @@ Gravity, velocity, and collision detection.
 
 Entity management and score scaling.
 
-[ ] Zombie Survival
+[x] Zombie Survival (Completed)
 
 [ ] Vampire Arena
 
@@ -166,7 +166,7 @@ Vector math and target tracking.
 
 [ ] Sniper Click
 
-[ ] Bubble Shooter
+[x] Bubble Shooter (Completed)
 
 [ ] Cannon Blast
 
