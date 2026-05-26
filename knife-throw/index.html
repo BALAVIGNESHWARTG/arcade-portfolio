@@ -1,1 +1,429 @@
-<!DOCTYPE html><html><head><title>Coming Soon: knife-throw</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>knife-throw - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Knife Throw - Carnival Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rye&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background: radial-gradient(circle, #3a1c1c 0%, #110000 100%);
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Rye', cursive;
+            overflow: hidden;
+            color: #f4d03f;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 500px; height: 100%; max-height: 800px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            background: radial-gradient(circle at 50% 30%, #5c2c2c 0%, #1a0808 80%);
+            border: 4px solid #8b4513;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            align-items: center; justify-content: space-between; padding: 30px 20px;
+        }
+
+        .score-display {
+            font-size: 50px; text-shadow: 2px 2px 5px #000;
+        }
+        
+        .knives-left {
+            display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; justify-content: center; width: 80%;
+        }
+        .knife-icon {
+            width: 10px; height: 30px; background: #aaa; clip-path: polygon(50% 0%, 100% 20%, 100% 100%, 0% 100%, 0% 20%);
+        }
+        .knife-icon.used { opacity: 0.2; }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 5, 5, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 60px; margin: 0 0 10px 0; text-shadow: 3px 3px 0 #8b4513;}
+        .modal p { font-size: 24px; margin-bottom: 40px; color: #fff;}
+        
+        .btn {
+            background: #8b4513; color: #f4d03f; border: 2px solid #f4d03f;
+            padding: 15px 40px; font-family: 'Rye', cursive; font-size: 24px;
+            cursor: pointer; border-radius: 5px; text-transform: uppercase;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: background 0.2s;
+        }
+        .btn:active { background: #5c2c2c; }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-layer">
+            <div>
+                <div class="score-display">STAGE <span id="stage">1</span></div>
+                <div class="knives-left" id="knives-ui"></div>
+            </div>
+        </div>
+        <div class="modal" id="menu">
+            <h1>KNIFE HIT</h1>
+            <p>Tap to throw.<br>Don't hit other knives!</p>
+            <button class="btn" id="start-btn">PLAY</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1>SPLINTERED!</h1>
+            <p>You reached Stage <span id="final-stage">1</span></p>
+            <button class="btn" id="restart-btn">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        const stageEl = document.getElementById('stage');
+        const knivesUiEl = document.getElementById('knives-ui');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let cw, ch;
+        function resize() {
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game State
+        let isPlaying = false;
+        let stage = 1;
+        let lastTime = 0;
+        
+        // Log setup
+        let log = {
+            x: 0, y: 0, radius: 80, rotation: 0, 
+            speed: 1, // radians per sec
+            targetSpeed: 1,
+            wobble: 0
+        };
+
+        // Knives
+        let knivesToThrow = 0;
+        let stuckKnives = []; // angles on the log
+        let activeKnife = null;
+        
+        // Splinters
+        let particles = [];
+
+        function initStage() {
+            log.x = cw / 2;
+            log.y = ch * 0.35;
+            log.rotation = 0;
+            log.wobble = 0;
+            
+            // Randomize log behavior based on stage
+            log.speed = (0.5 + Math.random() * 0.5) * (1 + stage * 0.1);
+            log.speed *= Math.random() > 0.5 ? 1 : -1;
+            
+            stuckKnives = [];
+            // Maybe start with some pre-stuck knives
+            let preStuck = Math.floor(Math.random() * (stage / 3));
+            for(let i=0; i<preStuck; i++) {
+                stuckKnives.push(Math.random() * Math.PI * 2);
+            }
+
+            knivesToThrow = 5 + Math.floor(stage / 2);
+            activeKnife = {
+                x: cw / 2, y: ch * 0.85,
+                state: 'ready' // ready, throwing
+            };
+            
+            stageEl.textContent = stage;
+            updateKnivesUI();
+        }
+
+        function initGame() {
+            stage = 1;
+            initStage();
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateKnivesUI() {
+            knivesUiEl.innerHTML = '';
+            for(let i=0; i<knivesToThrow; i++) {
+                let d = document.createElement('div');
+                d.className = 'knife-icon';
+                knivesUiEl.appendChild(d);
+            }
+        }
+
+        function throwKnife() {
+            if (!isPlaying || !activeKnife || activeKnife.state !== 'ready') return;
+            activeKnife.state = 'throwing';
+            knivesToThrow--;
+            
+            // update UI visually
+            if (knivesUiEl.lastChild) {
+                knivesUiEl.lastChild.classList.add('used');
+            }
+        }
+
+        document.addEventListener('mousedown', throwKnife);
+        document.addEventListener('touchstart', (e) => { e.preventDefault(); throwKnife(); }, {passive: false});
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function spawnParticles(x, y) {
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 400,
+                    vy: (Math.random() - 0.5) * 400 - 200,
+                    life: 1.0,
+                    color: Math.random() > 0.5 ? '#d2b48c' : '#8b4513'
+                });
+            }
+        }
+
+        function drawKnife(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            
+            // Blade
+            ctx.fillStyle = '#bdc3c7';
+            ctx.beginPath();
+            ctx.moveTo(0, -40);
+            ctx.lineTo(8, -10);
+            ctx.lineTo(8, 20);
+            ctx.lineTo(-8, 20);
+            ctx.lineTo(-8, -10);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Blade edge (highlight)
+            ctx.fillStyle = '#ecf0f1';
+            ctx.beginPath();
+            ctx.moveTo(0, -40);
+            ctx.lineTo(0, 20);
+            ctx.lineTo(-8, 20);
+            ctx.lineTo(-8, -10);
+            ctx.closePath();
+            ctx.fill();
+
+            // Handle
+            ctx.fillStyle = '#c0392b';
+            ctx.fillRect(-5, 20, 10, 30);
+            
+            // Guard
+            ctx.fillStyle = '#7f8c8d';
+            ctx.fillRect(-12, 18, 24, 4);
+
+            ctx.restore();
+        }
+
+        function drawLog() {
+            ctx.save();
+            ctx.translate(log.x, log.y);
+            ctx.rotate(log.rotation);
+            
+            // Wobble effect
+            let s = 1 + Math.sin(log.wobble) * 0.02;
+            ctx.scale(s, s);
+
+            // Wood Base
+            ctx.fillStyle = '#5c3a21';
+            ctx.beginPath();
+            ctx.arc(0, 0, log.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#3a2010';
+            ctx.stroke();
+
+            // Tree rings
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.lineWidth = 2;
+            for(let r = 20; r < log.radius; r += 15) {
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Draw stuck knives
+            for(let angle of stuckKnives) {
+                // Knife sticking out. Angle is relative to log center.
+                // 0 angle means pointing DOWN from log center.
+                let nx = Math.sin(angle) * log.radius;
+                let ny = Math.cos(angle) * log.radius;
+                
+                // Knife needs to point inward. 
+                drawKnife(nx, ny, -angle);
+            }
+
+            ctx.restore();
+        }
+
+        function update(dt) {
+            // Randomly change speed for higher stages
+            if (stage > 3 && Math.random() < 0.01) {
+                log.targetSpeed = (Math.random() * 2 + 1) * (Math.random() > 0.5 ? 1 : -1);
+            }
+            log.speed += (log.targetSpeed - log.speed) * dt * 2;
+            
+            log.rotation += log.speed * dt;
+            if (log.wobble > 0) log.wobble -= dt * 10;
+            if (log.wobble < 0) log.wobble = 0;
+
+            if (activeKnife && activeKnife.state === 'throwing') {
+                activeKnife.y -= 1500 * dt; // fast throw
+
+                // Collision with log
+                if (activeKnife.y - 40 <= log.y + log.radius) {
+                    
+                    // Check collision with other knives
+                    // The active knife always hits the very bottom of the log (angle 0 in world space)
+                    // Log rotation means world angle 0 is local angle -log.rotation
+                    let hitAngleLocal = -log.rotation;
+                    
+                    // Normalize to 0-2PI
+                    hitAngleLocal = hitAngleLocal % (Math.PI * 2);
+                    if(hitAngleLocal < 0) hitAngleLocal += Math.PI * 2;
+
+                    let hit = false;
+                    for (let a of stuckKnives) {
+                        let na = a % (Math.PI * 2);
+                        if(na < 0) na += Math.PI * 2;
+                        
+                        // angular distance
+                        let dist = Math.abs(na - hitAngleLocal);
+                        if (dist > Math.PI) dist = Math.PI * 2 - dist;
+                        
+                        if (dist < 0.25) { // roughly 14 degrees
+                            hit = true;
+                            break;
+                        }
+                    }
+
+                    if (hit) {
+                        // Crash
+                        activeKnife.state = 'falling';
+                        activeKnife.vx = (Math.random() - 0.5) * 500;
+                        activeKnife.vy = 200;
+                        activeKnife.rot = 0;
+                        activeKnife.rotSpeed = (Math.random() - 0.5) * 20;
+                        
+                        setTimeout(() => {
+                            isPlaying = false;
+                            document.getElementById('final-stage').textContent = stage;
+                            gameOverEl.classList.add('active');
+                        }, 1000);
+                        
+                    } else {
+                        // Stuck
+                        stuckKnives.push(-log.rotation);
+                        spawnParticles(activeKnife.x, log.y + log.radius);
+                        log.wobble = 1.0; // hit impact
+                        
+                        if (knivesToThrow > 0) {
+                            activeKnife = { x: cw / 2, y: ch * 0.85, state: 'ready' };
+                        } else {
+                            activeKnife = null;
+                            setTimeout(() => {
+                                stage++;
+                                initStage();
+                            }, 1000);
+                        }
+                    }
+                }
+            } else if (activeKnife && activeKnife.state === 'falling') {
+                activeKnife.x += activeKnife.vx * dt;
+                activeKnife.vy += 1000 * dt; // gravity
+                activeKnife.y += activeKnife.vy * dt;
+                activeKnife.rot += activeKnife.rotSpeed * dt;
+            }
+
+            // Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx * dt;
+                p.vy += 800 * dt; // grav
+                p.y += p.vy * dt;
+                p.life -= dt * 2;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, cw, ch);
+            
+            drawLog();
+            
+            if (activeKnife) {
+                if (activeKnife.state === 'falling') {
+                    drawKnife(activeKnife.x, activeKnife.y, activeKnife.rot);
+                } else {
+                    drawKnife(activeKnife.x, activeKnife.y, 0);
+                }
+            }
+
+            // Particles
+            for(let p of particles) {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) {
+                // Keep drawing falling knife if dead
+                let dt = (timestamp - lastTime) / 1000;
+                lastTime = timestamp;
+                if (activeKnife && activeKnife.state === 'falling') {
+                    activeKnife.x += activeKnife.vx * dt;
+                    activeKnife.vy += 1000 * dt; // gravity
+                    activeKnife.y += activeKnife.vy * dt;
+                    activeKnife.rot += activeKnife.rotSpeed * dt;
+                    draw();
+                }
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initial Draw
+        menuEl.classList.add('active');
+        initStage();
+        draw();
+    </script>
+</body>
+</html>

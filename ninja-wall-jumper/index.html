@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ninja Wall Jumper</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@900&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background: linear-gradient(180deg, #ff512f, #dd2476);
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Montserrat', sans-serif;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 450px; height: 100%; max-height: 800px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            background: linear-gradient(180deg, #ff7e5f, #feb47b);
+            animation: gradientShift 10s ease infinite alternate;
+        }
+
+        @keyframes gradientShift {
+            0% { background: linear-gradient(180deg, #ff7e5f, #feb47b); }
+            50% { background: linear-gradient(180deg, #ff512f, #dd2476); }
+            100% { background: linear-gradient(180deg, #8A2387, #E94057); }
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            align-items: center; justify-content: space-between; padding: 40px 20px;
+        }
+
+        .score-display {
+            font-size: 60px; color: rgba(255,255,255,0.3); font-weight: 900;
+        }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            color: #fff; z-index: 10;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 40px; margin: 0 0 10px 0; letter-spacing: 2px;}
+        .modal p { font-size: 20px; margin-bottom: 30px; color: #ccc;}
+        
+        .btn {
+            background: #fff; color: #000; border: none;
+            padding: 15px 40px; font-family: 'Montserrat', sans-serif; font-size: 20px; font-weight: 900;
+            cursor: pointer; border-radius: 50px; text-transform: uppercase;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-layer">
+            <div class="score-display" id="score">0</div>
+        </div>
+        <div class="modal" id="menu">
+            <h1>NINJA JUMP</h1>
+            <p>Tap to jump between walls</p>
+            <button class="btn" id="start-btn">PLAY</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1>GAME OVER</h1>
+            <p>Score: <span id="final-score">0</span></p>
+            <button class="btn" id="restart-btn">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let cw, ch;
+        function resize() {
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game State
+        let isPlaying = false;
+        let score = 0;
+        let lastTime = 0;
+        
+        // Constants
+        const WALL_WIDTH = 30;
+        const GRAVITY = 800; // px/s^2
+        const JUMP_VELOCITY_Y = -500;
+        const JUMP_VELOCITY_X = 600;
+        const SLIDE_FRICTION = 200; // max fall speed on wall
+
+        // Player
+        let player = {
+            x: 0, y: 0, w: 20, h: 20,
+            vx: 0, vy: 0,
+            onWall: 'left', // 'left', 'right', or null
+            isDead: false
+        };
+
+        // Spikes
+        let spikes = [];
+        let spikeTimer = 0;
+
+        function initGame() {
+            player.x = WALL_WIDTH;
+            player.y = ch / 2;
+            player.vx = 0;
+            player.vy = 0;
+            player.onWall = 'left';
+            player.isDead = false;
+            
+            spikes = [];
+            score = 0;
+            scoreEl.textContent = score;
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function jump() {
+            if (player.isDead) return;
+            if (player.onWall === 'left') {
+                player.vx = JUMP_VELOCITY_X;
+                player.vy = JUMP_VELOCITY_Y;
+                player.onWall = null;
+            } else if (player.onWall === 'right') {
+                player.vx = -JUMP_VELOCITY_X;
+                player.vy = JUMP_VELOCITY_Y;
+                player.onWall = null;
+            }
+        }
+
+        // Input
+        document.addEventListener('mousedown', () => { if(isPlaying) jump(); });
+        document.addEventListener('touchstart', (e) => { 
+            if(isPlaying) { e.preventDefault(); jump(); }
+        }, {passive: false});
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function spawnSpikes() {
+            // As score goes up, spawn spikes more frequently and in clusters
+            let numSpikes = Math.min(3, 1 + Math.floor(score / 15));
+            let side = Math.random() < 0.5 ? 'left' : 'right';
+            
+            // Random Y position, ensuring it's not too close to the top
+            let baseY = ch + 50; 
+            
+            for(let i=0; i<numSpikes; i++) {
+                spikes.push({
+                    side: side,
+                    y: baseY + i * 40,
+                    size: 25,
+                    passed: false
+                });
+            }
+        }
+
+        function update(dt) {
+            if (player.isDead) {
+                player.vy += GRAVITY * dt;
+                player.y += player.vy * dt;
+                if (player.y > ch + 50) {
+                    isPlaying = false;
+                    document.getElementById('final-score').textContent = score;
+                    gameOverEl.classList.add('active');
+                }
+                return;
+            }
+
+            // Physics
+            player.vy += GRAVITY * dt;
+
+            // Apply friction if on wall
+            if (player.onWall) {
+                if (player.vy > SLIDE_FRICTION) player.vy = SLIDE_FRICTION;
+                // Move player down slowly
+                player.y += player.vy * dt;
+            } else {
+                player.x += player.vx * dt;
+                player.y += player.vy * dt;
+            }
+
+            // Wall Collisions
+            if (!player.onWall) {
+                if (player.x <= WALL_WIDTH) {
+                    player.x = WALL_WIDTH;
+                    player.vx = 0;
+                    player.onWall = 'left';
+                    score++;
+                    scoreEl.textContent = score;
+                } else if (player.x + player.w >= cw - WALL_WIDTH) {
+                    player.x = cw - WALL_WIDTH - player.w;
+                    player.vx = 0;
+                    player.onWall = 'right';
+                    score++;
+                    scoreEl.textContent = score;
+                }
+            }
+
+            // Screen bounds
+            if (player.y > ch || player.y < 0) {
+                player.isDead = true;
+                player.vy = -200; // small hop on death
+            }
+
+            // Spikes
+            // Base speed increases with score
+            let spikeSpeed = 150 + (score * 5); 
+            
+            spikeTimer -= dt;
+            if (spikeTimer <= 0) {
+                spawnSpikes();
+                spikeTimer = 1.0 - Math.min(0.6, score * 0.02); // faster spawns
+            }
+
+            for (let i = spikes.length - 1; i >= 0; i--) {
+                let s = spikes[i];
+                s.y -= spikeSpeed * dt; // move spikes up
+
+                // Collision Detection
+                // Spike is a triangle attached to the wall
+                let sx = (s.side === 'left') ? WALL_WIDTH : cw - WALL_WIDTH;
+                // Simple AABB approximation for spikes
+                let spikeRect = {
+                    x: s.side === 'left' ? WALL_WIDTH : cw - WALL_WIDTH - s.size,
+                    y: s.y - s.size/2,
+                    w: s.size,
+                    h: s.size
+                };
+
+                if (
+                    player.x < spikeRect.x + spikeRect.w &&
+                    player.x + player.w > spikeRect.x &&
+                    player.y < spikeRect.y + spikeRect.h &&
+                    player.y + player.h > spikeRect.y
+                ) {
+                    player.isDead = true;
+                    player.vy = -300; // knockback
+                    player.vx = (s.side === 'left') ? 300 : -300;
+                    player.onWall = null;
+                }
+
+                if (s.y < -50) {
+                    spikes.splice(i, 1);
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Draw Walls (Silhouettes)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, WALL_WIDTH, ch);
+            ctx.fillRect(cw - WALL_WIDTH, 0, WALL_WIDTH, ch);
+
+            // Draw Spikes
+            ctx.fillStyle = '#000000';
+            for (let s of spikes) {
+                ctx.beginPath();
+                if (s.side === 'left') {
+                    ctx.moveTo(WALL_WIDTH, s.y - s.size/2);
+                    ctx.lineTo(WALL_WIDTH + s.size, s.y);
+                    ctx.lineTo(WALL_WIDTH, s.y + s.size/2);
+                } else {
+                    ctx.moveTo(cw - WALL_WIDTH, s.y - s.size/2);
+                    ctx.lineTo(cw - WALL_WIDTH - s.size, s.y);
+                    ctx.lineTo(cw - WALL_WIDTH, s.y + s.size/2);
+                }
+                ctx.fill();
+            }
+
+            // Draw Player (Ninja Square)
+            if (player.isDead) {
+                ctx.save();
+                ctx.translate(player.x + player.w/2, player.y + player.h/2);
+                ctx.rotate(player.vy * 0.01);
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+                // Red eye flash on death
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(-player.w/4, -player.h/4, player.w/2, player.h/4);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(player.x, player.y, player.w, player.h);
+                // Ninja Headband / Eyes
+                ctx.fillStyle = '#fff';
+                let eyeX = player.vx >= 0 ? player.x + 12 : player.x + 4;
+                if (player.onWall === 'left') eyeX = player.x + 12;
+                if (player.onWall === 'right') eyeX = player.x + 4;
+                
+                ctx.fillRect(eyeX, player.y + 4, 4, 4);
+            }
+            
+            // Draw particles (simple trail could be added, skipping for pure minimalist look)
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1; // prevent huge jumps
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Show Menu initially
+        menuEl.classList.add('active');
+        // Initial Draw for background
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, WALL_WIDTH, ch);
+        ctx.fillRect(cw - WALL_WIDTH, 0, WALL_WIDTH, ch);
+    </script>
+</body>
+</html>

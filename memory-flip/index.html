@@ -1,1 +1,271 @@
-<!DOCTYPE html><html><head><title>Coming Soon: memory-flip</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>memory-flip - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Memory Flip - Arcane Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #0f0c29;
+            --bg-color-mid: #302b63;
+            --bg-color-end: #24243e;
+            --gold: #d4af37;
+            --gold-glow: rgba(212, 175, 55, 0.6);
+            --card-back: #1a1a2e;
+            --card-front: #2a2a4a;
+        }
+
+        * { box-sizing: border-box; user-select: none; touch-action: manipulation; }
+
+        body {
+            margin: 0; padding: 0;
+            background: linear-gradient(135deg, var(--bg-color), var(--bg-color-mid), var(--bg-color-end));
+            color: var(--gold);
+            font-family: 'Cinzel', serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; overflow: hidden;
+        }
+
+        .header {
+            text-align: center; margin-bottom: 20px; text-shadow: 0 0 10px var(--gold-glow);
+        }
+        .header h1 { margin: 0; font-size: 32px; letter-spacing: 2px; }
+        .stats {
+            display: flex; gap: 30px; justify-content: center; margin-top: 10px; font-size: 18px; font-weight: bold;
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            perspective: 1000px;
+            padding: 10px;
+        }
+
+        .card {
+            width: 70px;
+            height: 100px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+            cursor: pointer;
+        }
+
+        @media (min-width: 500px) {
+            .card { width: 90px; height: 130px; }
+            .game-board { gap: 20px; }
+        }
+
+        .card.flipped { transform: rotateY(180deg); }
+        .card.matched { transform: rotateY(180deg) scale(0.95); opacity: 0.8; cursor: default; }
+
+        .card-face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden;
+            border-radius: 8px;
+            border: 2px solid var(--gold);
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5), 0 0 15px var(--gold-glow) inset;
+        }
+
+        /* The back of the card (facing up initially) */
+        .card-back {
+            background-color: var(--card-back);
+            background-image: radial-gradient(circle, #302b63 10%, transparent 20%), 
+                              radial-gradient(circle, transparent 10%, #1a1a2e 20%);
+            background-size: 10px 10px;
+            font-size: 24px; color: var(--gold);
+        }
+        
+        /* The front of the card (hidden initially) */
+        .card-front {
+            background-color: var(--card-front);
+            transform: rotateY(180deg);
+            font-size: 40px;
+            text-shadow: 0 0 15px var(--gold);
+        }
+
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 12, 41, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s; z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h2 { font-size: 48px; margin: 0 0 20px 0; text-shadow: 0 0 20px var(--gold); text-align: center;}
+        .modal p { font-size: 24px; margin-bottom: 30px; }
+        
+        .btn {
+            background: transparent; border: 2px solid var(--gold); color: var(--gold);
+            padding: 10px 30px; font-family: 'Cinzel', serif; font-size: 20px; font-weight: bold;
+            cursor: pointer; transition: all 0.3s; text-transform: uppercase;
+            box-shadow: 0 0 15px var(--gold-glow);
+        }
+        .btn:hover {
+            background: var(--gold); color: var(--bg-color); box-shadow: 0 0 30px var(--gold);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Arcane Memory</h1>
+        <div class="stats">
+            <div>Moves: <span id="moves">0</span></div>
+            <div>Time: <span id="time">0s</span></div>
+        </div>
+    </div>
+
+    <div class="game-board" id="board">
+        <!-- Cards injected here -->
+    </div>
+
+    <div class="modal" id="game-over">
+        <h2>Fate Sealed</h2>
+        <p>You revealed all mysteries in <span id="final-moves">0</span> moves and <span id="final-time">0</span>s.</p>
+        <button class="btn" onclick="initGame()">Read Again</button>
+    </div>
+
+    <script>
+        const symbols = ['🔮', '🌙', '👁️', '🗡️', '🗝️', '👑', '🐉', '💀'];
+        let cards = [];
+        let firstCard = null;
+        let secondCard = null;
+        let lockBoard = false;
+        let matchedPairs = 0;
+        
+        let moves = 0;
+        let timeElapsed = 0;
+        let timer = null;
+        let gameStarted = false;
+
+        const boardEl = document.getElementById('board');
+        const movesEl = document.getElementById('moves');
+        const timeEl = document.getElementById('time');
+        const modalEl = document.getElementById('game-over');
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function initGame() {
+            clearInterval(timer);
+            gameStarted = false;
+            moves = 0;
+            timeElapsed = 0;
+            matchedPairs = 0;
+            movesEl.textContent = moves;
+            timeEl.textContent = '0s';
+            firstCard = null;
+            secondCard = null;
+            lockBoard = false;
+            modalEl.classList.remove('active');
+
+            // 16 cards (8 pairs)
+            cards = shuffle([...symbols, ...symbols]);
+            
+            boardEl.innerHTML = '';
+            cards.forEach((symbol, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.symbol = symbol;
+                
+                card.innerHTML = `
+                    <div class="card-face card-back">✨</div>
+                    <div class="card-face card-front">${symbol}</div>
+                `;
+                
+                card.addEventListener('click', flipCard);
+                boardEl.appendChild(card);
+            });
+        }
+
+        function startTimer() {
+            if (gameStarted) return;
+            gameStarted = true;
+            timer = setInterval(() => {
+                timeElapsed++;
+                timeEl.textContent = timeElapsed + 's';
+            }, 1000);
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === firstCard) return; // Prevent double click
+            
+            startTimer();
+
+            this.classList.add('flipped');
+
+            if (!firstCard) {
+                firstCard = this;
+                return;
+            }
+
+            secondCard = this;
+            moves++;
+            movesEl.textContent = moves;
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.symbol === secondCard.dataset.symbol;
+
+            if (isMatch) {
+                disableCards();
+            } else {
+                unflipCards();
+            }
+        }
+
+        function disableCards() {
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+            
+            // Add matched class after flip animation
+            setTimeout(() => {
+                firstCard.classList.add('matched');
+                secondCard.classList.add('matched');
+                resetBoard();
+                matchedPairs++;
+                if (matchedPairs === symbols.length) {
+                    gameOver();
+                }
+            }, 500);
+        }
+
+        function unflipCards() {
+            lockBoard = true;
+            setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                resetBoard();
+            }, 1000);
+        }
+
+        function resetBoard() {
+            [firstCard, secondCard] = [null, null];
+            lockBoard = false;
+        }
+
+        function gameOver() {
+            clearInterval(timer);
+            setTimeout(() => {
+                document.getElementById('final-moves').textContent = moves;
+                document.getElementById('final-time').textContent = timeElapsed;
+                modalEl.classList.add('active');
+            }, 500);
+        }
+
+        initGame();
+    </script>
+</body>
+</html>

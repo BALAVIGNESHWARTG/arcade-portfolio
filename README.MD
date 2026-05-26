@@ -68,13 +68,13 @@ Algorithmic thinking and state management.
 
 [x] 2048 (Completed)
 
-[ ] Memory Flip
+[x] Memory Flip (Completed)
 
 [ ] Sliding Puzzle
 
 [ ] Sudoku
 
-[ ] Minesweeper
+[x] Minesweeper (Completed)
 
 [ ] Logic Grid Solver
 
@@ -130,7 +130,7 @@ Gravity, velocity, and collision detection.
 
 [ ] Time Freeze Jump
 
-[ ] Wall Climb Ninja
+[x] Ninja Wall Jumper (Completed)
 
 [ ] Speedrun Platformer
 
@@ -174,7 +174,7 @@ Vector math and target tracking.
 
 [ ] Precision Drop
 
-[ ] Knife Throw
+[x] Knife Throw (Completed)
 
 [ ] Basket Shot
 
@@ -210,7 +210,7 @@ Creative coding and unusual mechanics.
 
 Game state synchronization and turn logic.
 
-[ ] Tic Tac Toe (AI)
+[x] Tic Tac Toe (AI) (Completed)
 
 [ ] Connect Four
 

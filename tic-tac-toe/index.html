@@ -1,1 +1,261 @@
-<!DOCTYPE html><html><head><title>Coming Soon: tic-tac-toe</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>tic-tac-toe - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tic Tac Toe - AI Master</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #2b4f3b; /* base green */
+            /* Chalkboard texture trick */
+            background-image: 
+                radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-position: 0 0, 2px 2px;
+            background-size: 4px 4px;
+            height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Permanent Marker', cursive;
+            color: #eee;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center; margin-bottom: 20px;
+        }
+        .header h1 { font-size: 48px; margin: 0; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .header p { font-size: 20px; margin: 5px 0 0 0; color: #ccc; }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            width: 300px;
+            height: 300px;
+            position: relative;
+        }
+
+        /* Chalkboard lines */
+        .board::before, .board::after {
+            content: ''; position: absolute; background: rgba(255,255,255,0.8);
+            border-radius: 5px; box-shadow: 0 0 5px rgba(255,255,255,0.5);
+        }
+        /* Vertical lines */
+        .line-v1 { position: absolute; width: 4px; height: 100%; background: #fff; left: 33.33%; transform: translateX(-50%); border-radius: 5px; opacity: 0.8;}
+        .line-v2 { position: absolute; width: 4px; height: 100%; background: #fff; left: 66.66%; transform: translateX(-50%); border-radius: 5px; opacity: 0.8;}
+        /* Horizontal lines */
+        .line-h1 { position: absolute; height: 4px; width: 100%; background: #fff; top: 33.33%; transform: translateY(-50%); border-radius: 5px; opacity: 0.8;}
+        .line-h2 { position: absolute; height: 4px; width: 100%; background: #fff; top: 66.66%; transform: translateY(-50%); border-radius: 5px; opacity: 0.8;}
+
+        .cell {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 70px; cursor: pointer; z-index: 5;
+            transition: text-shadow 0.2s;
+        }
+
+        .cell.x { color: #ffeb3b; text-shadow: 0 0 10px rgba(255, 235, 59, 0.5); }
+        .cell.o { color: #03a9f4; text-shadow: 0 0 10px rgba(3, 169, 244, 0.5); }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h2 { font-size: 60px; margin: 0 0 20px 0; color: #fff;}
+        
+        .btn {
+            background: transparent; color: #fff; border: 3px solid #fff;
+            padding: 10px 30px; font-family: 'Permanent Marker', cursive; font-size: 24px;
+            cursor: pointer; border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .btn:active { background: #fff; color: #2b4f3b; }
+
+        @media (max-width: 400px) {
+            .board { width: 270px; height: 270px; }
+            .cell { font-size: 60px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Tic Tac Toe</h1>
+        <p>You can't win. Only draw.</p>
+    </div>
+
+    <div style="position: relative;">
+        <div class="line-v1"></div>
+        <div class="line-v2"></div>
+        <div class="line-h1"></div>
+        <div class="line-h2"></div>
+        
+        <div class="board" id="board">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="game-over">
+        <h2 id="result-text">Draw!</h2>
+        <button class="btn" onclick="initGame()">Play Again</button>
+    </div>
+
+    <script>
+        const cells = document.querySelectorAll('.cell');
+        const modal = document.getElementById('game-over');
+        const resultText = document.getElementById('result-text');
+
+        let board = Array(9).fill(null); // null, 'X', or 'O'
+        let player = 'X';
+        let ai = 'O';
+        let isGameOver = false;
+
+        const winCombos = [
+            [0,1,2], [3,4,5], [6,7,8], // rows
+            [0,3,6], [1,4,7], [2,5,8], // cols
+            [0,4,8], [2,4,6]           // diags
+        ];
+
+        function initGame() {
+            board = Array(9).fill(null);
+            isGameOver = false;
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.className = 'cell';
+            });
+            modal.classList.remove('active');
+        }
+
+        cells.forEach(cell => {
+            cell.addEventListener('click', (e) => {
+                if (isGameOver) return;
+                const idx = e.target.dataset.index;
+                if (!board[idx]) {
+                    makeMove(idx, player);
+                    if (!isGameOver) {
+                        // AI turn
+                        setTimeout(bestMove, 100);
+                    }
+                }
+            });
+        });
+
+        function makeMove(idx, mark) {
+            board[idx] = mark;
+            cells[idx].textContent = mark;
+            cells[idx].classList.add(mark.toLowerCase());
+
+            if (checkWin(board, mark)) {
+                endGame(mark === player ? 'You Win? Impossible!' : 'AI Wins!');
+            } else if (checkTie(board)) {
+                endGame('Draw!');
+            }
+        }
+
+        function checkWin(boardState, mark) {
+            return winCombos.some(combo => {
+                return combo.every(index => boardState[index] === mark);
+            });
+        }
+
+        function checkTie(boardState) {
+            return boardState.every(cell => cell !== null);
+        }
+
+        function endGame(text) {
+            isGameOver = true;
+            resultText.textContent = text;
+            setTimeout(() => {
+                modal.classList.add('active');
+            }, 500);
+        }
+
+        // --- MINIMAX AI --- //
+        function bestMove() {
+            let bestScore = -Infinity;
+            let move;
+            
+            // Get available spots
+            let available = [];
+            for(let i=0; i<9; i++) if(!board[i]) available.push(i);
+
+            // If it's the very first move of the game, take a random corner or center to save computation time
+            if (available.length === 9 || available.length === 8) {
+                 if (!board[4]) move = 4;
+                 else {
+                     let corners = [0, 2, 6, 8];
+                     move = corners[Math.floor(Math.random() * corners.length)];
+                 }
+            } else {
+                for (let i = 0; i < 9; i++) {
+                    if (board[i] === null) {
+                        board[i] = ai;
+                        let score = minimax(board, 0, false);
+                        board[i] = null;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            move = i;
+                        }
+                    }
+                }
+            }
+
+            makeMove(move, ai);
+        }
+
+        let scores = {
+            'O': 10,
+            'X': -10,
+            'tie': 0
+        };
+
+        function minimax(boardState, depth, isMaximizing) {
+            if (checkWin(boardState, ai)) return scores['O'] - depth;
+            if (checkWin(boardState, player)) return scores['X'] + depth;
+            if (checkTie(boardState)) return scores['tie'];
+
+            if (isMaximizing) {
+                let bestScore = -Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (boardState[i] === null) {
+                        boardState[i] = ai;
+                        let score = minimax(boardState, depth + 1, false);
+                        boardState[i] = null;
+                        bestScore = Math.max(score, bestScore);
+                    }
+                }
+                return bestScore;
+            } else {
+                let bestScore = Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (boardState[i] === null) {
+                        boardState[i] = player;
+                        let score = minimax(boardState, depth + 1, true);
+                        boardState[i] = null;
+                        bestScore = Math.min(score, bestScore);
+                    }
+                }
+                return bestScore;
+            }
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
