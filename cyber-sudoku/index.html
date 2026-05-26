@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Sudoku</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;700&display=swap');
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #0f1016;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            overflow: hidden;
+            color: #e0e6ed;
+        }
+
+        .container {
+            width: 100%; max-width: 500px; padding: 15px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        .header {
+            width: 100%; display: flex; justify-content: space-between; margin-bottom: 20px;
+        }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 300; letter-spacing: 2px; }
+        .stats { font-size: 16px; color: #8b9eb0; display: flex; align-items: center; }
+
+        /* The Board */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            width: 100%; max-width: 450px; aspect-ratio: 1;
+            background: #2a2f3a;
+            border: 2px solid #5d6b7d;
+            gap: 1px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        .cell {
+            background: #151821;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; font-weight: 700;
+            cursor: pointer; transition: background 0.1s;
+        }
+
+        /* 3x3 Block borders */
+        .cell:nth-child(3n) { border-right: 2px solid #5d6b7d; }
+        .cell:nth-child(9n) { border-right: none; }
+        .cell:nth-child(n+19):nth-child(-n+27),
+        .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #5d6b7d; }
+
+        /* States */
+        .cell.given { color: #8b9eb0; font-weight: 300; cursor: default; }
+        .cell.user { color: #00d2ff; text-shadow: 0 0 5px rgba(0,210,255,0.4); }
+        .cell.selected { background: #263346; box-shadow: inset 0 0 0 2px #00d2ff; }
+        .cell.highlight { background: #1e2430; }
+        .cell.error { color: #ff3366; background: rgba(255, 51, 102, 0.15); text-shadow: 0 0 5px rgba(255,51,102,0.4); }
+
+        /* Keypad */
+        .keypad {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+            width: 100%; max-width: 450px; margin-top: 20px;
+        }
+        
+        .key {
+            background: #1c212c; border: 1px solid #364156;
+            color: #e0e6ed; padding: 15px 0; font-size: 24px; font-family: inherit;
+            border-radius: 8px; cursor: pointer; transition: all 0.1s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .key:active { background: #2a2f3a; transform: scale(0.95); }
+        .key.clear { background: #231518; border-color: #4a2128; color: #ff3366; }
+        
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 16, 22, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+            z-index: 100;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h2 { font-size: 40px; margin: 0 0 20px 0; color: #00d2ff; font-weight: 300;}
+        .modal p { font-size: 18px; margin-bottom: 30px; color: #8b9eb0;}
+        
+        .btn {
+            background: transparent; color: #00d2ff; border: 1px solid #00d2ff;
+            padding: 12px 30px; font-family: inherit; font-size: 16px;
+            cursor: pointer; border-radius: 4px; text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #00d2ff; color: #0f1016; box-shadow: 0 0 15px rgba(0,210,255,0.4); }
+
+        @media (max-width: 400px) {
+            .cell { font-size: 18px; }
+            .key { padding: 10px 0; font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>SUDOKU</h1>
+            <div class="stats" id="timer">00:00</div>
+        </div>
+
+        <div class="board" id="board">
+            <!-- 81 cells injected here -->
+        </div>
+
+        <div class="keypad">
+            <button class="key" data-val="1">1</button>
+            <button class="key" data-val="2">2</button>
+            <button class="key" data-val="3">3</button>
+            <button class="key" data-val="4">4</button>
+            <button class="key" data-val="5">5</button>
+            <button class="key" data-val="6">6</button>
+            <button class="key" data-val="7">7</button>
+            <button class="key" data-val="8">8</button>
+            <button class="key" data-val="9">9</button>
+            <button class="key clear" data-val="0">X</button>
+        </div>
+    </div>
+
+    <div class="modal" id="game-over">
+        <h2>VERIFIED</h2>
+        <p>Matrix solved in <span id="final-time">00:00</span>.</p>
+        <button class="btn" onclick="initGame()">New Matrix</button>
+    </div>
+
+    <script>
+        const boardEl = document.getElementById('board');
+        const timerEl = document.getElementById('timer');
+        const modalEl = document.getElementById('game-over');
+        
+        let grid = []; // 9x9 array
+        let solution = []; // 9x9 array
+        let cells = []; // DOM elements
+        let selectedIdx = -1;
+        
+        let timer = null;
+        let timeElapsed = 0;
+        let isPlaying = false;
+
+        // Sudoku Generator
+        function isValid(board, r, c, num) {
+            for(let i=0; i<9; i++) {
+                if(board[r][i] === num) return false;
+                if(board[i][c] === num) return false;
+            }
+            let br = Math.floor(r/3)*3;
+            let bc = Math.floor(c/3)*3;
+            for(let i=0; i<3; i++) {
+                for(let j=0; j<3; j++) {
+                    if(board[br+i][bc+j] === num) return false;
+                }
+            }
+            return true;
+        }
+
+        function solve(board) {
+            for(let r=0; r<9; r++) {
+                for(let c=0; c<9; c++) {
+                    if(board[r][c] === 0) {
+                        // try random numbers 1-9 to generate varied puzzles
+                        let nums = [1,2,3,4,5,6,7,8,9];
+                        nums.sort(() => Math.random() - 0.5);
+                        for(let num of nums) {
+                            if(isValid(board, r, c, num)) {
+                                board[r][c] = num;
+                                if(solve(board)) return true;
+                                board[r][c] = 0;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function generatePuzzle() {
+            // Empty board
+            solution = Array(9).fill().map(() => Array(9).fill(0));
+            // Fill diagonal 3x3 blocks first (optimization)
+            for(let i=0; i<9; i+=3) {
+                let nums = [1,2,3,4,5,6,7,8,9];
+                nums.sort(() => Math.random() - 0.5);
+                let idx = 0;
+                for(let r=0; r<3; r++) {
+                    for(let c=0; c<3; c++) {
+                        solution[i+r][i+c] = nums[idx++];
+                    }
+                }
+            }
+            solve(solution);
+            
+            // Create puzzle from solution
+            grid = solution.map(row => [...row]);
+            let cellsToRemove = 40; // Difficulty
+            while(cellsToRemove > 0) {
+                let r = Math.floor(Math.random() * 9);
+                let c = Math.floor(Math.random() * 9);
+                if (grid[r][c] !== 0) {
+                    grid[r][c] = 0;
+                    cellsToRemove--;
+                }
+            }
+        }
+
+        function initGame() {
+            clearInterval(timer);
+            timeElapsed = 0;
+            isPlaying = true;
+            selectedIdx = -1;
+            modalEl.classList.remove('active');
+            
+            generatePuzzle();
+            renderBoard();
+            startTimer();
+            validateBoard();
+        }
+
+        function renderBoard() {
+            boardEl.innerHTML = '';
+            cells = [];
+            for(let r=0; r<9; r++) {
+                for(let c=0; c<9; c++) {
+                    let cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    cell.dataset.idx = r * 9 + c;
+                    
+                    let val = grid[r][c];
+                    if (val !== 0) {
+                        cell.textContent = val;
+                        cell.classList.add('given');
+                    } else {
+                        // User cell
+                        cell.classList.add('user');
+                    }
+                    
+                    cell.addEventListener('click', () => selectCell(r * 9 + c));
+                    cells.push(cell);
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function selectCell(idx) {
+            if (!isPlaying) return;
+            let r = Math.floor(idx / 9);
+            let c = idx % 9;
+            
+            if (cells[idx].classList.contains('given')) return; // can't select givens for editing, but can highlight
+            
+            selectedIdx = idx;
+            
+            // Highlight row, col, box
+            cells.forEach((cell, i) => {
+                cell.classList.remove('selected', 'highlight');
+                let cr = Math.floor(i / 9);
+                let cc = i % 9;
+                
+                if (cr === r || cc === c || (Math.floor(cr/3) === Math.floor(r/3) && Math.floor(cc/3) === Math.floor(c/3))) {
+                    cell.classList.add('highlight');
+                }
+            });
+            
+            cells[idx].classList.remove('highlight');
+            cells[idx].classList.add('selected');
+        }
+
+        // Keypad input
+        document.querySelectorAll('.key').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (selectedIdx === -1 || !isPlaying) return;
+                let val = parseInt(btn.dataset.val);
+                let r = Math.floor(selectedIdx / 9);
+                let c = selectedIdx % 9;
+                
+                if (val === 0) {
+                    grid[r][c] = 0;
+                    cells[selectedIdx].textContent = '';
+                } else {
+                    grid[r][c] = val;
+                    cells[selectedIdx].textContent = val;
+                }
+                
+                validateBoard();
+                checkWin();
+            });
+        });
+
+        // Keyboard input
+        window.addEventListener('keydown', e => {
+            if (selectedIdx === -1 || !isPlaying) return;
+            let r = Math.floor(selectedIdx / 9);
+            let c = selectedIdx % 9;
+            
+            if (e.key >= '1' && e.key <= '9') {
+                grid[r][c] = parseInt(e.key);
+                cells[selectedIdx].textContent = e.key;
+                validateBoard();
+                checkWin();
+            } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
+                grid[r][c] = 0;
+                cells[selectedIdx].textContent = '';
+                validateBoard();
+            } else if (e.key === 'ArrowUp') moveSelection(-9);
+            else if (e.key === 'ArrowDown') moveSelection(9);
+            else if (e.key === 'ArrowLeft') moveSelection(-1);
+            else if (e.key === 'ArrowRight') moveSelection(1);
+        });
+
+        function moveSelection(delta) {
+            let next = selectedIdx + delta;
+            if (next >= 0 && next < 81 && !cells[next].classList.contains('given')) {
+                selectCell(next);
+            }
+        }
+
+        function validateBoard() {
+            // Clear errors
+            cells.forEach(c => c.classList.remove('error'));
+            
+            // Check rows, cols, boxes for duplicates
+            for(let i=0; i<9; i++) {
+                // Row
+                let rowSeen = {};
+                for(let c=0; c<9; c++) {
+                    let v = grid[i][c];
+                    if(v !== 0) {
+                        if(rowSeen[v] !== undefined) {
+                            cells[i*9 + c].classList.add('error');
+                            cells[i*9 + rowSeen[v]].classList.add('error');
+                        } else {
+                            rowSeen[v] = c;
+                        }
+                    }
+                }
+                // Col
+                let colSeen = {};
+                for(let r=0; r<9; r++) {
+                    let v = grid[r][i];
+                    if(v !== 0) {
+                        if(colSeen[v] !== undefined) {
+                            cells[r*9 + i].classList.add('error');
+                            cells[colSeen[v]*9 + i].classList.add('error');
+                        } else {
+                            colSeen[v] = r;
+                        }
+                    }
+                }
+            }
+            
+            // Boxes
+            for(let br=0; br<3; br++) {
+                for(let bc=0; bc<3; bc++) {
+                    let boxSeen = {};
+                    for(let r=0; r<3; r++) {
+                        for(let c=0; c<3; c++) {
+                            let currR = br*3 + r;
+                            let currC = bc*3 + c;
+                            let v = grid[currR][currC];
+                            if(v !== 0) {
+                                if(boxSeen[v] !== undefined) {
+                                    cells[currR*9 + currC].classList.add('error');
+                                    cells[boxSeen[v].r*9 + boxSeen[v].c].classList.add('error');
+                                } else {
+                                    boxSeen[v] = {r: currR, c: currC};
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function checkWin() {
+            // Must have no zeros and no errors
+            for(let r=0; r<9; r++) {
+                for(let c=0; c<9; c++) {
+                    if (grid[r][c] === 0) return;
+                }
+            }
+            let hasError = cells.some(c => c.classList.contains('error'));
+            if (!hasError) {
+                isPlaying = false;
+                clearInterval(timer);
+                setTimeout(() => {
+                    document.getElementById('final-time').textContent = timerEl.textContent;
+                    modalEl.classList.add('active');
+                }, 500);
+            }
+        }
+
+        function startTimer() {
+            timer = setInterval(() => {
+                timeElapsed++;
+                let m = Math.floor(timeElapsed / 60).toString().padStart(2, '0');
+                let s = (timeElapsed % 60).toString().padStart(2, '0');
+                timerEl.textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        initGame();
+    </script>
+</body>
+</html>

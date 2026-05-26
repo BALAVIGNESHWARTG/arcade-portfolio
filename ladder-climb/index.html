@@ -1,1 +1,517 @@
-<!DOCTYPE html><html><head><title>Coming Soon: ladder-climb</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>ladder-climb - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ladder Climb</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #000;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 600px; aspect-ratio: 3/4; max-height: 800px;
+            background: #000;
+            border: 2px solid #555;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+        .ui-layer {
+            position: absolute; top: 10px; left: 0; width: 100%;
+            display: flex; justify-content: space-between; padding: 0 20px;
+            font-size: 16px; color: #fff; text-shadow: 2px 2px 0 #f00; pointer-events: none;
+        }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 32px; margin: 0 0 20px 0; color: #f00; text-shadow: 2px 2px 0 #fff;}
+        .modal p { font-size: 14px; margin-bottom: 40px; color: #fff; line-height: 1.5;}
+        
+        .btn {
+            background: #000; color: #fff; border: 4px solid #fff;
+            padding: 15px 30px; font-family: 'Press Start 2P', cursive; font-size: 16px;
+            cursor: pointer; text-transform: uppercase;
+            box-shadow: inset -4px -4px 0 rgba(255,255,255,0.3);
+        }
+        .btn:active { box-shadow: inset 4px 4px 0 rgba(255,255,255,0.3); }
+
+        /* Mobile Controls */
+        .controls {
+            position: absolute; bottom: 10px; left: 0; width: 100%;
+            display: none; justify-content: space-between; padding: 0 20px; z-index: 5;
+        }
+        @media (hover: none) and (pointer: coarse) {
+            .controls { display: flex; }
+        }
+        .d-pad, .action-btns { display: grid; gap: 5px; }
+        .d-pad { grid-template-areas: ". up ." "left . right" ". down ."; }
+        .action-btns { align-self: flex-end; }
+        .c-btn {
+            width: 50px; height: 50px; background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.5); border-radius: 5px;
+            display: flex; align-items: center; justify-content: center; color: #fff;
+        }
+        .c-btn:active { background: rgba(255,255,255,0.5); }
+        #btn-up { grid-area: up; } #btn-down { grid-area: down; }
+        #btn-left { grid-area: left; } #btn-right { grid-area: right; }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-layer">
+            <div>SCORE: <span id="score">0</span></div>
+            <div>LIVES: <span id="lives">3</span></div>
+        </div>
+        
+        <div class="controls">
+            <div class="d-pad">
+                <div class="c-btn" id="btn-up">^</div>
+                <div class="c-btn" id="btn-left">&lt;</div>
+                <div class="c-btn" id="btn-right">&gt;</div>
+                <div class="c-btn" id="btn-down">v</div>
+            </div>
+            <div class="action-btns">
+                <div class="c-btn" id="btn-jump">JMP</div>
+            </div>
+        </div>
+
+        <div class="modal" id="menu">
+            <h1>LADDER<br>CLIMB</h1>
+            <p>Arrows to move/climb.<br>Space to jump.</p>
+            <button class="btn" id="start-btn">INSERT COIN</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1 id="go-title">GAME OVER</h1>
+            <p>Score: <span id="final-score">0</span></p>
+            <button class="btn" id="restart-btn">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let cw = 300;
+        let ch = 400; // Fixed logic resolution, scaled via CSS
+        canvas.width = cw;
+        canvas.height = ch;
+
+        // Game State
+        let isPlaying = false;
+        let score = 0;
+        let lives = 3;
+        let lastTime = 0;
+        
+        // Constants
+        const GRAVITY = 800; // px/s^2
+        const JUMP_FORCE = -280;
+        const MOVE_SPEED = 100;
+        const CLIMB_SPEED = 60;
+
+        // Level Design
+        // 6 platforms. Bottom is flat, others are slanted slightly.
+        let platforms = [];
+        let ladders = [];
+        let barrels = [];
+        let barrelTimer = 0;
+        let goal = {x: 130, y: 30, w: 40, h: 40};
+
+        let player = {
+            x: 0, y: 0, w: 12, h: 16,
+            vx: 0, vy: 0,
+            isGrounded: false,
+            isClimbing: false,
+            animState: 0
+        };
+
+        let keys = { left:false, right:false, up:false, down:false, jump:false };
+
+        function initLevel() {
+            platforms = [
+                // x, y, width, slant (change in Y from left to right)
+                { x: 0, y: 380, w: 300, slant: 0 },   // Bottom
+                { x: -20, y: 310, w: 280, slant: -15 }, 
+                { x: 40, y: 240, w: 280, slant: 15 },
+                { x: -20, y: 170, w: 280, slant: -15 },
+                { x: 40, y: 100, w: 280, slant: 15 },
+                { x: 100, y: 70, w: 100, slant: 0 }    // Top (Goal area)
+            ];
+            
+            ladders = [
+                { x: 220, y: 303, w: 16, h: 77 },
+                { x: 60, y: 245, w: 16, h: 60 },
+                { x: 220, y: 163, w: 16, h: 84 },
+                { x: 60, y: 105, w: 16, h: 60 },
+                { x: 150, y: 70, w: 16, h: 40 }
+            ];
+
+            player.x = 20;
+            player.y = 360;
+            player.vx = 0; player.vy = 0;
+            player.isGrounded = false;
+            player.isClimbing = false;
+            
+            barrels = [];
+            barrelTimer = 2.0;
+        }
+
+        function initGame() {
+            score = 0;
+            lives = 3;
+            scoreEl.textContent = score;
+            livesEl.textContent = lives;
+            
+            initLevel();
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Controls binding
+        const keyMap = { 'ArrowLeft':'left', 'a':'left', 'ArrowRight':'right', 'd':'right', 
+                         'ArrowUp':'up', 'w':'up', 'ArrowDown':'down', 's':'down', ' ':'jump' };
+                         
+        document.addEventListener('keydown', e => {
+            if(keyMap[e.key] && !e.repeat) keys[keyMap[e.key]] = true;
+        });
+        document.addEventListener('keyup', e => {
+            if(keyMap[e.key]) keys[keyMap[e.key]] = false;
+        });
+
+        // Touch
+        const bindBtn = (id, key) => {
+            let el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('touchstart', e => { e.preventDefault(); keys[key]=true; }, {passive:false});
+            el.addEventListener('touchend', e => { e.preventDefault(); keys[key]=false; });
+            el.addEventListener('mousedown', () => keys[key]=true);
+            el.addEventListener('mouseup', () => keys[key]=false);
+            el.addEventListener('mouseleave', () => keys[key]=false);
+        };
+        bindBtn('btn-up', 'up'); bindBtn('btn-down', 'down');
+        bindBtn('btn-left', 'left'); bindBtn('btn-right', 'right'); bindBtn('btn-jump', 'jump');
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function spawnBarrel() {
+            barrels.push({
+                x: 60, y: 70, radius: 6, vx: 50, vy: 0, 
+                falling: false, currentPlat: 4
+            });
+        }
+
+        function die() {
+            lives--;
+            livesEl.textContent = lives;
+            if (lives <= 0) {
+                isPlaying = false;
+                document.getElementById('go-title').textContent = "GAME OVER";
+                document.getElementById('final-score').textContent = score;
+                gameOverEl.classList.add('active');
+            } else {
+                initLevel();
+            }
+        }
+
+        function winLevel() {
+            score += 1000;
+            scoreEl.textContent = score;
+            initLevel(); // reset position, keep score
+        }
+
+        function getPlatformY(p, x) {
+            if (x < p.x || x > p.x + p.w) return null;
+            // Linear interpolation for slant
+            let ratio = (x - p.x) / p.w;
+            return p.y + (p.slant * ratio);
+        }
+
+        function update(dt) {
+            // Player Logic
+            let touchingLadder = null;
+            for(let l of ladders) {
+                if (player.x + player.w > l.x && player.x < l.x + l.w &&
+                    player.y + player.h >= l.y && player.y <= l.y + l.h) {
+                    touchingLadder = l;
+                    break;
+                }
+            }
+
+            if (touchingLadder) {
+                if (!player.isClimbing && (keys.up || keys.down)) {
+                    player.isClimbing = true;
+                    player.vx = 0;
+                    // Snap to ladder center
+                    player.x = touchingLadder.x + touchingLadder.w/2 - player.w/2;
+                }
+            } else {
+                player.isClimbing = false;
+            }
+
+            if (player.isClimbing) {
+                player.vy = 0;
+                if (keys.up) player.y -= CLIMB_SPEED * dt;
+                else if (keys.down) player.y += CLIMB_SPEED * dt;
+                
+                // Jump off ladder
+                if (keys.left) { player.isClimbing = false; player.vx = -MOVE_SPEED; }
+                if (keys.right) { player.isClimbing = false; player.vx = MOVE_SPEED; }
+                
+                // Reached top/bottom of ladder (handled by collision naturally if we just stop climbing)
+            } else {
+                // Normal Platforming
+                if (keys.left) player.vx = -MOVE_SPEED;
+                else if (keys.right) player.vx = MOVE_SPEED;
+                else player.vx = 0;
+
+                if (keys.jump && player.isGrounded) {
+                    player.vy = JUMP_FORCE;
+                    player.isGrounded = false;
+                    keys.jump = false; // prevent hold jumping
+                    score += 10; // tiny score for jumps
+                    scoreEl.textContent = score;
+                }
+
+                player.vy += GRAVITY * dt;
+            }
+
+            // Apply movement
+            player.x += player.vx * dt;
+            if (!player.isClimbing) player.y += player.vy * dt;
+
+            // Bounds
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > cw) player.x = cw - player.w;
+
+            // Platform Collision (only when falling or grounded)
+            player.isGrounded = false;
+            if (!player.isClimbing && player.vy >= 0) {
+                for (let p of platforms) {
+                    // Check if player is above platform horizontally
+                    let pYCenter = getPlatformY(p, player.x + player.w/2);
+                    if (pYCenter !== null) {
+                        // Was previous position above? Check current Y vs pY
+                        if (player.y + player.h >= pYCenter - 5 && player.y + player.h - (player.vy * dt) <= pYCenter + 5) {
+                            player.y = pYCenter - player.h;
+                            player.vy = 0;
+                            player.isGrounded = true;
+                        }
+                    }
+                }
+            }
+
+            // Win Condition
+            if (player.x + player.w > goal.x && player.x < goal.x + goal.w &&
+                player.y + player.h > goal.y && player.y < goal.y + goal.h) {
+                winLevel();
+                return;
+            }
+
+            // Barrels
+            barrelTimer -= dt;
+            if (barrelTimer <= 0) {
+                spawnBarrel();
+                barrelTimer = 2.0 - Math.min(1.0, score * 0.0001); // faster spawn later
+            }
+
+            for (let i = barrels.length - 1; i >= 0; i--) {
+                let b = barrels[i];
+                
+                if (b.falling) {
+                    b.vy += GRAVITY * dt;
+                    b.y += b.vy * dt;
+                    
+                    // Check landing on next platform
+                    let nextP = platforms[b.currentPlat - 1];
+                    if (nextP) {
+                        let py = getPlatformY(nextP, b.x);
+                        if (py !== null && b.y + b.radius >= py) {
+                            b.y = py - b.radius;
+                            b.vy = 0;
+                            b.falling = false;
+                            b.currentPlat--;
+                            // Reverse direction
+                            b.vx = (nextP.slant > 0) ? -60 : 60;
+                        }
+                    } else if (b.y > ch + 20) {
+                        barrels.splice(i, 1);
+                        continue;
+                    }
+                } else {
+                    b.x += b.vx * dt;
+                    let p = platforms[b.currentPlat];
+                    let py = getPlatformY(p, b.x);
+                    if (py !== null) {
+                        b.y = py - b.radius;
+                    }
+                    
+                    // Check fall off edge
+                    if (py === null) {
+                        b.falling = true;
+                        b.vy = 0;
+                    }
+                    
+                    // Chance to fall down ladder
+                    if (!b.falling && Math.random() < 0.02) {
+                        for (let l of ladders) {
+                            if (b.x > l.x && b.x < l.x + l.w && b.y > l.y - 10 && b.y < l.y + 10) {
+                                b.falling = true;
+                                b.vx = 0;
+                                b.x = l.x + l.w/2;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Collision with player
+                let dx = (player.x + player.w/2) - b.x;
+                let dy = (player.y + player.h/2) - b.y;
+                if (Math.sqrt(dx*dx + dy*dy) < b.radius + player.w/2) {
+                    die();
+                    return; // stop update
+                }
+            }
+
+            // Animation
+            player.animState += dt * 10;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Draw Goal
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(goal.x, goal.y, goal.w, goal.h);
+            ctx.fillStyle = '#f00';
+            ctx.font = '8px Press Start 2P';
+            ctx.fillText("SAVE", goal.x + 4, goal.y + 24);
+
+            // Draw Platforms (Girders)
+            ctx.lineWidth = 4;
+            for (let p of platforms) {
+                ctx.strokeStyle = '#d22';
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x + p.w, p.y + p.slant);
+                ctx.stroke();
+                
+                // Inner truss lines
+                ctx.strokeStyle = '#a11';
+                ctx.lineWidth = 1;
+                for(let i=0; i<p.w; i+=10) {
+                    let y1 = p.y + (p.slant * (i/p.w));
+                    let y2 = p.y + (p.slant * ((i+10)/p.w));
+                    ctx.beginPath();
+                    ctx.moveTo(p.x + i, y1);
+                    ctx.lineTo(p.x + i + 10, y2 + 8);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Ladders
+            ctx.strokeStyle = '#0ff';
+            ctx.lineWidth = 2;
+            for(let l of ladders) {
+                ctx.beginPath();
+                ctx.moveTo(l.x, l.y); ctx.lineTo(l.x, l.y + l.h);
+                ctx.moveTo(l.x + l.w, l.y); ctx.lineTo(l.x + l.w, l.y + l.h);
+                for(let i=4; i<l.h; i+=8) {
+                    ctx.moveTo(l.x, l.y + i); ctx.lineTo(l.x + l.w, l.y + i);
+                }
+                ctx.stroke();
+            }
+
+            // Draw Barrels
+            ctx.fillStyle = '#f90';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            for (let b of barrels) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2);
+                ctx.fill();
+                ctx.stroke();
+                // Roll animation
+                ctx.save();
+                ctx.translate(b.x, b.y);
+                ctx.rotate(b.x * 0.1);
+                ctx.beginPath();
+                ctx.moveTo(-b.radius, 0); ctx.lineTo(b.radius, 0);
+                ctx.moveTo(0, -b.radius); ctx.lineTo(0, b.radius);
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Draw Player
+            ctx.fillStyle = '#0f0';
+            // Bobbing animation if moving
+            let pY = player.y;
+            if (player.vx !== 0 && player.isGrounded) {
+                pY += Math.sin(player.animState) * 2;
+            }
+            ctx.fillRect(player.x, pY, player.w, player.h);
+            
+            // Player eyes/details
+            ctx.fillStyle = '#fff';
+            if (player.isClimbing) {
+                // Back view
+                ctx.fillRect(player.x + 2, pY + 2, 8, 4);
+            } else {
+                // Side view
+                let dir = player.vx < 0 ? -1 : 1;
+                let eyeX = dir === 1 ? player.x + 8 : player.x + 2;
+                ctx.fillRect(eyeX, pY + 2, 2, 2);
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Show menu
+        menuEl.classList.add('active');
+        initLevel(); // Draw background for menu
+        draw();
+    </script>
+</body>
+</html>

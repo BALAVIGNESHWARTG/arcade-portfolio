@@ -28,7 +28,7 @@ Anchoring credibility with the classics.
 
 [x] Asteroids (Completed)
 
-[ ] Pac-Man (Grid AI)
+[x] Neon Maze Runner (Completed)(Grid AI)
 
 [x] Block Drop (Tetris) (Completed)
 
@@ -72,7 +72,7 @@ Algorithmic thinking and state management.
 
 [x] Sliding Puzzle (Completed)
 
-[ ] Sudoku
+[x] Cyber Sudoku (Completed)
 
 [x] Minesweeper (Completed)
 
@@ -118,7 +118,7 @@ Gravity, velocity, and collision detection.
 
 [x] Lava Escape (Completed)
 
-[ ] Ladder Climb
+[x] Ladder Climb (Completed)
 
 [x] Vector Thrust (Completed)
 
@@ -162,7 +162,7 @@ Entity management and score scaling.
 
 Vector math and target tracking.
 
-[ ] Target Practice
+[x] Skeet Shooter (Completed)
 
 [ ] Sniper Click
 
@@ -212,7 +212,7 @@ Game state synchronization and turn logic.
 
 [x] Tic Tac Toe (AI) (Completed)
 
-[ ] Connect Four
+[x] Neon Connect Four (Completed)
 
 [ ] Rock Paper Scissors
 

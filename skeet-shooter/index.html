@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skeet Shooter</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #111;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 800px; aspect-ratio: 4/3; max-height: 800px;
+            background: linear-gradient(to bottom, #ff7b00 0%, #ff0055 50%, #4a004a 100%);
+            box-shadow: 0 0 20px rgba(255, 123, 0, 0.5);
+            cursor: none; /* Hide default cursor */
+            overflow: hidden;
+        }
+
+        canvas { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; }
+
+        .ui-layer {
+            position: absolute; top: 20px; left: 0; width: 100%;
+            display: flex; justify-content: space-between; padding: 0 30px;
+            font-size: 20px; color: #fff; text-shadow: 3px 3px 0 #000;
+            pointer-events: none; z-index: 2;
+        }
+        
+        .bottom-ui {
+            position: absolute; bottom: 20px; left: 0; width: 100%;
+            display: flex; justify-content: center;
+            pointer-events: none; z-index: 2;
+        }
+
+        .ammo-box {
+            display: flex; gap: 10px;
+        }
+        .shell {
+            width: 15px; height: 35px; background: #ff0000;
+            border: 2px solid #000; border-bottom: 8px solid #ffd700;
+        }
+        .shell.empty { background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.2); border-bottom-color: rgba(255,215,0,0.2); }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 10; text-align: center; color: #fff;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 40px; margin: 0 0 20px 0; color: #ff7b00; text-shadow: 4px 4px 0 #000;}
+        .modal p { font-size: 16px; margin-bottom: 40px; line-height: 1.5; text-shadow: 2px 2px 0 #000;}
+        
+        .btn {
+            background: #ff7b00; color: #000; border: 4px solid #fff;
+            padding: 15px 30px; font-family: 'Press Start 2P', cursive; font-size: 20px;
+            cursor: pointer; text-transform: uppercase;
+        }
+        .btn:active { background: #ff0055; color: #fff; }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute; width: 40px; height: 40px;
+            pointer-events: none; z-index: 5;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: ''; position: absolute; background: #0f0;
+        }
+        #crosshair::before { top: 19px; left: 0; width: 40px; height: 2px; }
+        #crosshair::after { top: 0; left: 19px; width: 2px; height: 40px; }
+        
+        .reload-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            background: rgba(255,255,255,0.2); color: #fff;
+            border: 2px solid #fff; padding: 10px; font-family: inherit; font-size: 12px;
+            z-index: 6; cursor: pointer; display: none;
+        }
+        @media (hover: none) and (pointer: coarse) {
+            .reload-btn { display: block; }
+            #crosshair { display: none !important; } /* Hidden on touch */
+        }
+        
+        #flash {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #fff; opacity: 0; pointer-events: none; z-index: 4;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="flash"></div>
+        
+        <div id="crosshair"></div>
+        
+        <div class="ui-layer">
+            <div>PULLS: <span id="score">0</span></div>
+            <div>MISS: <span id="misses">0</span>/3</div>
+        </div>
+        
+        <div class="bottom-ui">
+            <div class="ammo-box" id="ammo-box">
+                <div class="shell"></div><div class="shell"></div><div class="shell"></div>
+            </div>
+        </div>
+        
+        <button class="reload-btn" id="btn-reload">RELOAD</button>
+
+        <div class="modal" id="menu">
+            <h1>SKEET<br>SHOOTER</h1>
+            <p>Click/Tap to fire.<br>Right-click or Space to reload.</p>
+            <button class="btn" id="start-btn">PULL</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1 id="go-title">GAME OVER</h1>
+            <p>Score: <span id="final-score">0</span></p>
+            <button class="btn" id="restart-btn">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        const crosshair = document.getElementById('crosshair');
+        const flash = document.getElementById('flash');
+        
+        const scoreEl = document.getElementById('score');
+        const missesEl = document.getElementById('misses');
+        const ammoBox = document.getElementById('ammo-box');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let cw, ch;
+        function resize() {
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game State
+        let isPlaying = false;
+        let score = 0;
+        let misses = 0;
+        let ammo = 3;
+        let lastTime = 0;
+        let pointerX = cw/2, pointerY = ch/2;
+        
+        const GRAVITY = 500;
+        let targets = [];
+        let particles = [];
+        
+        let spawnTimer = 0;
+        let spawnDelay = 2.0;
+
+        function initGame() {
+            score = 0; misses = 0; ammo = 3;
+            scoreEl.textContent = score;
+            missesEl.textContent = misses;
+            updateAmmoUI();
+            
+            targets = [];
+            particles = [];
+            spawnTimer = 1.0;
+            spawnDelay = 2.0;
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateAmmoUI() {
+            let html = '';
+            for(let i=0; i<3; i++) {
+                html += `<div class="shell ${i >= ammo ? 'empty' : ''}"></div>`;
+            }
+            ammoBox.innerHTML = html;
+        }
+
+        function reload() {
+            if (!isPlaying || ammo === 3) return;
+            ammo = 3;
+            updateAmmoUI();
+        }
+
+        function spawnTarget() {
+            // Spawn left or right
+            let isLeft = Math.random() > 0.5;
+            let x = isLeft ? -20 : cw + 20;
+            let y = ch + 20;
+            
+            // Trajectory
+            let vx = (isLeft ? 1 : -1) * (200 + Math.random() * 150 + score * 5);
+            let vy = -600 - Math.random() * 200; // Shoot upwards
+            
+            targets.push({
+                x: x, y: y,
+                vx: vx, vy: vy,
+                radius: 20,
+                color: '#ff6600', // clay pigeon orange
+                hit: false
+            });
+        }
+
+        function createDebris(x, y, color) {
+            for(let i=0; i<8; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5)*400,
+                    vy: (Math.random()-0.5)*400 - 100,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function fire(px, py) {
+            if (!isPlaying || ammo <= 0) return;
+            
+            ammo--;
+            updateAmmoUI();
+            
+            // Screen flash
+            flash.style.opacity = '1';
+            flash.style.transition = 'none';
+            setTimeout(() => {
+                flash.style.transition = 'opacity 0.2s';
+                flash.style.opacity = '0';
+            }, 50);
+
+            // Check hits (Shotgun spread logic, simple radius check)
+            let hitRadius = 40; // generous hit area
+            
+            for (let i = targets.length - 1; i >= 0; i--) {
+                let t = targets[i];
+                let dx = t.x - px;
+                let dy = t.y - py;
+                if (Math.sqrt(dx*dx + dy*dy) < t.radius + hitRadius) {
+                    // Hit!
+                    score++;
+                    scoreEl.textContent = score;
+                    createDebris(t.x, t.y, t.color);
+                    targets.splice(i, 1);
+                }
+            }
+        }
+
+        // Input
+        container.addEventListener('mousemove', e => {
+            let rect = container.getBoundingClientRect();
+            pointerX = e.clientX - rect.left;
+            pointerY = e.clientY - rect.top;
+            crosshair.style.left = pointerX + 'px';
+            crosshair.style.top = pointerY + 'px';
+            crosshair.style.display = 'block';
+        });
+
+        container.addEventListener('mousedown', e => {
+            if(e.button === 0) fire(pointerX, pointerY);
+            if(e.button === 2) reload(); // Right click reload
+        });
+        
+        container.addEventListener('contextmenu', e => e.preventDefault());
+        
+        // Touch
+        container.addEventListener('touchstart', e => {
+            // Prevent default except on buttons
+            if(e.target.tagName !== 'BUTTON') e.preventDefault(); 
+            
+            let rect = container.getBoundingClientRect();
+            let x = e.changedTouches[0].clientX - rect.left;
+            let y = e.changedTouches[0].clientY - rect.top;
+            fire(x, y);
+        }, {passive: false});
+
+        window.addEventListener('keydown', e => {
+            if(e.code === 'Space' || e.code === 'KeyR') reload();
+        });
+        
+        document.getElementById('btn-reload').addEventListener('click', (e) => {
+            e.stopPropagation(); reload();
+        });
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function gameOver() {
+            isPlaying = false;
+            document.getElementById('final-score').textContent = score;
+            gameOverEl.classList.add('active');
+        }
+
+        function update(dt) {
+            // Targets
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+                spawnTarget();
+                spawnDelay = Math.max(0.8, 2.0 - (score * 0.05));
+                spawnTimer = spawnDelay;
+            }
+
+            for (let i = targets.length - 1; i >= 0; i--) {
+                let t = targets[i];
+                t.vy += GRAVITY * dt;
+                t.x += t.vx * dt;
+                t.y += t.vy * dt;
+                
+                // Miss condition (fell below screen after reaching peak)
+                if (t.y > ch + 50 && t.vy > 0) {
+                    misses++;
+                    missesEl.textContent = misses;
+                    targets.splice(i, 1);
+                    if (misses >= 3) gameOver();
+                }
+            }
+            
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.vy += GRAVITY * dt;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= dt;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, cw, ch);
+            
+            // Draw Scenery (Mountains/Grass)
+            ctx.fillStyle = '#220022';
+            ctx.beginPath();
+            ctx.moveTo(0, ch);
+            ctx.lineTo(0, ch - 100);
+            ctx.lineTo(cw*0.3, ch - 250);
+            ctx.lineTo(cw*0.6, ch - 150);
+            ctx.lineTo(cw, ch - 300);
+            ctx.lineTo(cw, ch);
+            ctx.fill();
+            
+            ctx.fillStyle = '#0a2a0a';
+            ctx.fillRect(0, ch-50, cw, 50);
+
+            // Targets
+            for(let t of targets) {
+                ctx.fillStyle = t.color;
+                
+                ctx.beginPath();
+                ctx.ellipse(t.x, t.y, t.radius, t.radius*0.4, 0, 0, Math.PI*2);
+                ctx.fill();
+                
+                // Details
+                ctx.fillStyle = '#ffaa00';
+                ctx.beginPath();
+                ctx.ellipse(t.x, t.y, t.radius*0.6, t.radius*0.2, 0, 0, Math.PI*2);
+                ctx.fill();
+            }
+            
+            // Particles
+            for(let p of particles) {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillRect(p.x, p.y, 6, 6);
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Show menu
+        menuEl.classList.add('active');
+        draw(); // draw initial scenery
+    </script>
+</body>
+</html>

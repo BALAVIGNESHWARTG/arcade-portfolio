@@ -1,1 +1,428 @@
-<!DOCTYPE html><html><head><title>Coming Soon: connect-four</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>connect-four - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Connect Four</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap');
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #050a15;
+            background-image: radial-gradient(circle at 50% 50%, #1a2235 0%, #050a15 100%);
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        .container {
+            width: 100%; max-width: 600px; padding: 10px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        .header {
+            width: 100%; text-align: center; margin-bottom: 20px;
+        }
+        .header h1 { margin: 0 0 10px 0; font-size: 32px; color: #fff; text-shadow: 0 0 10px #0ff; }
+        #turn-indicator { font-size: 18px; letter-spacing: 2px; transition: color 0.3s; }
+        .turn-p1 { color: #0ff; text-shadow: 0 0 10px #0ff; }
+        .turn-p2 { color: #f0f; text-shadow: 0 0 10px #f0f; }
+
+        /* The Board container */
+        .board-wrapper {
+            position: relative;
+            width: 100%; max-width: 500px; aspect-ratio: 7/6;
+        }
+
+        /* Chips drop behind the board */
+        .chips-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(6, 1fr);
+            z-index: 1; pointer-events: none;
+        }
+
+        .chip-slot { position: relative; width: 100%; height: 100%; }
+
+        .chip {
+            position: absolute; width: 80%; height: 80%;
+            left: 10%; top: 10%; border-radius: 50%;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .chip.p1 { background: radial-gradient(circle at 30% 30%, #fff, #0ff); box-shadow: 0 0 15px #0ff; }
+        .chip.p2 { background: radial-gradient(circle at 30% 30%, #fff, #f0f); box-shadow: 0 0 15px #f0f; }
+        
+        /* The acrylic board with holes in front */
+        .board {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(6, 1fr);
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.05);
+        }
+
+        .hole {
+            width: 100%; height: 100%; position: relative; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        
+        /* Create the "cutout" effect using a pseudo-element mask */
+        .hole::after {
+            content: ''; position: absolute;
+            width: 85%; height: 85%; border-radius: 50%;
+            background: transparent;
+            box-shadow: 0 0 0 100px rgba(10, 20, 40, 0.8); /* Fills the rest of the cell */
+            z-index: -1; /* Behind the hole border, above the chips */
+        }
+        
+        /* Highlight winning chips */
+        .chip.winner {
+            animation: pulse 1s infinite alternate;
+            border: 3px solid #fff;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 15px currentColor; }
+            100% { transform: scale(1.1); box-shadow: 0 0 30px currentColor, 0 0 50px #fff; }
+        }
+
+        /* Hover indicator for columns */
+        .hover-indicator {
+            position: absolute; top: -40px; width: calc(100% / 7); height: 40px;
+            display: flex; justify-content: center; align-items: flex-end;
+            transition: left 0.1s; z-index: 3; pointer-events: none; opacity: 0;
+        }
+        .hover-chip {
+            width: 30px; height: 30px; border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff, #0ff); box-shadow: 0 0 15px #0ff;
+        }
+
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 10, 21, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+            z-index: 100;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h2 { font-size: 40px; margin: 0 0 20px 0; color: #fff;}
+        .modal p { font-size: 18px; margin-bottom: 30px; color: #aaa;}
+        
+        .btn {
+            background: transparent; color: #0ff; border: 2px solid #0ff;
+            padding: 12px 30px; font-family: inherit; font-size: 18px; font-weight: 700;
+            cursor: pointer; border-radius: 5px; text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(0,255,255,0.2), inset 0 0 10px rgba(0,255,255,0.1);
+            transition: all 0.2s; margin: 5px;
+        }
+        .btn:hover { background: #0ff; color: #000; box-shadow: 0 0 30px #0ff; }
+        
+        .btn-p2 { color: #f0f; border-color: #f0f; box-shadow: 0 0 15px rgba(255,0,255,0.2), inset 0 0 10px rgba(255,0,255,0.1); }
+        .btn-p2:hover { background: #f0f; color: #000; box-shadow: 0 0 30px #f0f; }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>NEON ALIGN</h1>
+            <div id="turn-indicator" class="turn-p1">PLAYER 1 TURN</div>
+        </div>
+
+        <div class="board-wrapper">
+            <div class="hover-indicator" id="hover-ind"><div class="hover-chip" id="hover-chip"></div></div>
+            <div class="chips-layer" id="chips-layer">
+                <!-- 42 slots generated by JS -->
+            </div>
+            <div class="board" id="board">
+                <!-- 42 holes generated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="menu">
+        <h2>SELECT MODE</h2>
+        <div>
+            <button class="btn" onclick="initGame(true)">1 PLAYER (VS AI)</button>
+            <button class="btn btn-p2" onclick="initGame(false)">2 PLAYERS</button>
+        </div>
+    </div>
+    
+    <div class="modal" id="game-over">
+        <h2 id="go-title">PLAYER 1 WINS</h2>
+        <button class="btn" onclick="menuEl.classList.add('active'); this.parentElement.classList.remove('active');">MAIN MENU</button>
+    </div>
+
+    <script>
+        const boardEl = document.getElementById('board');
+        const chipsLayer = document.getElementById('chips-layer');
+        const turnInd = document.getElementById('turn-indicator');
+        const hoverInd = document.getElementById('hover-ind');
+        const hoverChip = document.getElementById('hover-chip');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        const ROWS = 6;
+        const COLS = 7;
+        
+        let grid = []; // 0=empty, 1=p1, 2=p2
+        let currentPlayer = 1;
+        let isPlaying = false;
+        let isVsAI = true;
+        let isAnimating = false;
+
+        function buildBoardDOM() {
+            boardEl.innerHTML = '';
+            chipsLayer.innerHTML = '';
+            
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    // Create visual hole
+                    let hole = document.createElement('div');
+                    hole.className = 'hole';
+                    hole.dataset.col = c;
+                    
+                    hole.addEventListener('mouseenter', () => updateHover(c));
+                    hole.addEventListener('click', () => dropChip(c));
+                    
+                    boardEl.appendChild(hole);
+                    
+                    // Create underlying chip slot
+                    let slot = document.createElement('div');
+                    slot.className = 'chip-slot';
+                    slot.id = `slot-${r}-${c}`;
+                    chipsLayer.appendChild(slot);
+                }
+            }
+            
+            boardEl.addEventListener('mouseleave', () => {
+                hoverInd.style.opacity = '0';
+            });
+        }
+
+        function updateHover(col) {
+            if (!isPlaying || isAnimating || (isVsAI && currentPlayer === 2)) return;
+            hoverInd.style.opacity = '1';
+            hoverInd.style.left = `${(col / COLS) * 100}%`;
+            
+            if (currentPlayer === 1) {
+                hoverChip.style.background = 'radial-gradient(circle at 30% 30%, #fff, #0ff)';
+                hoverChip.style.boxShadow = '0 0 15px #0ff';
+            } else {
+                hoverChip.style.background = 'radial-gradient(circle at 30% 30%, #fff, #f0f)';
+                hoverChip.style.boxShadow = '0 0 15px #f0f';
+            }
+        }
+
+        function initGame(vsAI) {
+            isVsAI = vsAI;
+            grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+            currentPlayer = 1;
+            isPlaying = true;
+            isAnimating = false;
+            
+            buildBoardDOM();
+            updateTurnUI();
+            
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+        }
+
+        function updateTurnUI() {
+            if (currentPlayer === 1) {
+                turnInd.textContent = "PLAYER 1 TURN";
+                turnInd.className = 'turn-p1';
+            } else {
+                turnInd.textContent = isVsAI ? "AI THINKING..." : "PLAYER 2 TURN";
+                turnInd.className = 'turn-p2';
+            }
+        }
+
+        function getLowestEmptyRow(col) {
+            for (let r = ROWS - 1; r >= 0; r--) {
+                if (grid[r][col] === 0) return r;
+            }
+            return -1;
+        }
+
+        function dropChip(col) {
+            if (!isPlaying || isAnimating || (isVsAI && currentPlayer === 2)) return;
+            
+            let row = getLowestEmptyRow(col);
+            if (row === -1) return; // Column full
+            
+            executeDrop(row, col, currentPlayer);
+        }
+
+        function executeDrop(row, col, player) {
+            isAnimating = true;
+            grid[row][col] = player;
+            hoverInd.style.opacity = '0'; // hide while dropping
+            
+            // Create DOM element for falling chip
+            let chip = document.createElement('div');
+            chip.className = `chip p${player}`;
+            
+            // Start position (above board)
+            chip.style.transform = `translateY(-${(row + 1) * 100}%)`;
+            
+            let slot = document.getElementById(`slot-${row}-${col}`);
+            slot.appendChild(chip);
+            
+            // Trigger animation
+            requestAnimationFrame(() => {
+                chip.style.transform = 'translateY(0)';
+            });
+            
+            setTimeout(() => {
+                let winLines = checkWin(player);
+                if (winLines.length > 0) {
+                    endGame(player, winLines);
+                } else if (checkTie()) {
+                    endGame(0, null);
+                } else {
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    updateTurnUI();
+                    isAnimating = false;
+                    
+                    if (isVsAI && currentPlayer === 2) {
+                        setTimeout(aiMakeMove, 600); // slight delay for feel
+                    }
+                }
+            }, 450); // wait for animation
+        }
+
+        function aiMakeMove() {
+            if (!isPlaying) return;
+            
+            // Simple AI: Check for win, then block, then random
+            
+            // 1. Can AI win?
+            for (let c = 0; c < COLS; c++) {
+                let r = getLowestEmptyRow(c);
+                if (r !== -1) {
+                    grid[r][c] = 2;
+                    if (checkWin(2).length > 0) {
+                        grid[r][c] = 0;
+                        executeDrop(r, c, 2);
+                        return;
+                    }
+                    grid[r][c] = 0;
+                }
+            }
+            
+            // 2. Can Player win? (Block)
+            for (let c = 0; c < COLS; c++) {
+                let r = getLowestEmptyRow(c);
+                if (r !== -1) {
+                    grid[r][c] = 1;
+                    if (checkWin(1).length > 0) {
+                        grid[r][c] = 0;
+                        executeDrop(r, c, 2);
+                        return;
+                    }
+                    grid[r][c] = 0;
+                }
+            }
+            
+            // 3. Play center if available (basic strat)
+            let r = getLowestEmptyRow(3);
+            if (r !== -1 && Math.random() > 0.5) {
+                executeDrop(r, 3, 2);
+                return;
+            }
+            
+            // 4. Random valid column
+            let validCols = [];
+            for (let c = 0; c < COLS; c++) {
+                if (getLowestEmptyRow(c) !== -1) validCols.push(c);
+            }
+            let col = validCols[Math.floor(Math.random() * validCols.length)];
+            executeDrop(getLowestEmptyRow(col), col, 2);
+        }
+
+        function checkTie() {
+            return grid[0].every(cell => cell !== 0);
+        }
+
+        function checkWin(player) {
+            let winLines = [];
+            
+            // Horizontal
+            for(let r=0; r<ROWS; r++) {
+                for(let c=0; c<=COLS-4; c++) {
+                    if(grid[r][c]==player && grid[r][c+1]==player && grid[r][c+2]==player && grid[r][c+3]==player) {
+                        winLines.push([{r,c}, {r,c:c+1}, {r,c:c+2}, {r,c:c+3}]);
+                    }
+                }
+            }
+            // Vertical
+            for(let r=0; r<=ROWS-4; r++) {
+                for(let c=0; c<COLS; c++) {
+                    if(grid[r][c]==player && grid[r+1][c]==player && grid[r+2][c]==player && grid[r+3][c]==player) {
+                        winLines.push([{r,c}, {r:r+1,c}, {r:r+2,c}, {r:r+3,c}]);
+                    }
+                }
+            }
+            // Diagonal (Down-Right)
+            for(let r=0; r<=ROWS-4; r++) {
+                for(let c=0; c<=COLS-4; c++) {
+                    if(grid[r][c]==player && grid[r+1][c+1]==player && grid[r+2][c+2]==player && grid[r+3][c+3]==player) {
+                        winLines.push([{r,c}, {r:r+1,c:c+1}, {r:r+2,c:c+2}, {r:r+3,c:c+3}]);
+                    }
+                }
+            }
+            // Diagonal (Up-Right)
+            for(let r=3; r<ROWS; r++) {
+                for(let c=0; c<=COLS-4; c++) {
+                    if(grid[r][c]==player && grid[r-1][c+1]==player && grid[r-2][c+2]==player && grid[r-3][c+3]==player) {
+                        winLines.push([{r,c}, {r:r-1,c:c+1}, {r:r-2,c:c+2}, {r:r-3,c:c+3}]);
+                    }
+                }
+            }
+            
+            return winLines;
+        }
+
+        function endGame(winner, winLines) {
+            isPlaying = false;
+            
+            if (winner === 0) {
+                document.getElementById('go-title').textContent = "SYSTEM STALEMATE";
+                document.getElementById('go-title').style.color = "#fff";
+                document.getElementById('go-title').style.textShadow = "none";
+            } else {
+                document.getElementById('go-title').textContent = winner === 1 ? "PLAYER 1 WINS" : (isVsAI ? "AI WINS" : "PLAYER 2 WINS");
+                let color = winner === 1 ? "#0ff" : "#f0f";
+                document.getElementById('go-title').style.color = color;
+                document.getElementById('go-title').style.textShadow = `0 0 20px ${color}`;
+                
+                // Highlight winning chips
+                winLines.forEach(line => {
+                    line.forEach(coord => {
+                        let slot = document.getElementById(`slot-${coord.r}-${coord.c}`);
+                        if(slot.firstChild) slot.firstChild.classList.add('winner');
+                    });
+                });
+            }
+            
+            setTimeout(() => {
+                gameOverEl.classList.add('active');
+            }, 1000);
+        }
+
+        // Initialize Menu
+        menuEl.classList.add('active');
+        buildBoardDOM(); // just to show empty board in bg
+    </script>
+</body>
+</html>
