@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Laser Defense</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #030a08;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 600px; aspect-ratio: 1; max-height: 800px;
+            background: #000;
+            border: 2px solid #0f0;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .ui-layer {
+            position: absolute; top: -40px; left: 0; width: 100%;
+            display: flex; justify-content: space-between;
+            font-size: 20px; color: #0f0; text-shadow: 0 0 5px #0f0;
+        }
+
+        .controls {
+            position: absolute; bottom: -50px; left: 0; width: 100%;
+            display: flex; justify-content: space-between; align-items: center;
+            color: #0ff; text-shadow: 0 0 5px #0ff; font-size: 16px;
+        }
+        
+        .build-btn {
+            background: rgba(0,255,255,0.1); border: 1px solid #0ff; color: #0ff;
+            padding: 10px; font-family: inherit; cursor: pointer;
+            box-shadow: inset 0 0 10px rgba(0,255,255,0.2);
+        }
+        .build-btn.active { background: rgba(0,255,255,0.4); box-shadow: 0 0 15px #0ff; }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 10, 5, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 40px; margin: 0 0 10px 0; color: #0f0; text-shadow: 0 0 20px #0f0;}
+        .modal p { font-size: 16px; margin-bottom: 30px; color: #aaa;}
+        
+        .btn {
+            background: transparent; color: #0f0; border: 2px solid #0f0;
+            padding: 15px 40px; font-family: inherit; font-size: 20px;
+            cursor: pointer; text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(0,255,0,0.2), inset 0 0 10px rgba(0,255,0,0.1);
+            transition: all 0.2s;
+        }
+        .btn:active { background: #0f0; color: #000; box-shadow: 0 0 30px #0f0; }
+
+    </style>
+</head>
+<body>
+
+    <div style="position:relative; width: 100%; max-width: 600px; aspect-ratio:1;">
+        <div class="ui-layer">
+            <div>CASH: $<span id="cash">100</span></div>
+            <div>WAVE: <span id="wave">1</span></div>
+            <div>BASE: <span id="health">10</span></div>
+        </div>
+        
+        <div id="game-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div class="modal" id="menu">
+                <h1>GRID DEFENSE</h1>
+                <p>Tap grid to build Laser Towers ($50).<br>Defend the Core.</p>
+                <button class="btn" id="start-btn">INITIALIZE</button>
+            </div>
+            
+            <div class="modal" id="game-over">
+                <h1 id="go-title">CORE BREACHED</h1>
+                <p>Survived to Wave <span id="final-wave">0</span></p>
+                <button class="btn" id="restart-btn">REBOOT</button>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div>MODE: <button class="build-btn active" id="btn-build">BUILD TOWER ($50)</button></div>
+            <div style="color:#f00;">ENEMIES: <span id="enemy-count">0</span></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        const cashEl = document.getElementById('cash');
+        const waveEl = document.getElementById('wave');
+        const healthEl = document.getElementById('health');
+        const countEl = document.getElementById('enemy-count');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let cw, ch;
+        const GRID_COLS = 12;
+        const GRID_ROWS = 12;
+        let CELL_W, CELL_H;
+
+        function resize() {
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+            CELL_W = cw / GRID_COLS;
+            CELL_H = ch / GRID_ROWS;
+            drawGrid();
+        }
+        window.addEventListener('resize', resize);
+
+        // Path (Snake through grid)
+        const pathCoords = [
+            {c: 0, r: 2}, {c: 1, r: 2}, {c: 2, r: 2}, {c: 2, r: 3}, {c: 2, r: 4},
+            {c: 2, r: 5}, {c: 3, r: 5}, {c: 4, r: 5}, {c: 5, r: 5}, {c: 6, r: 5},
+            {c: 7, r: 5}, {c: 7, r: 6}, {c: 7, r: 7}, {c: 7, r: 8}, {c: 6, r: 8},
+            {c: 5, r: 8}, {c: 4, r: 8}, {c: 3, r: 8}, {c: 3, r: 9}, {c: 3, r: 10},
+            {c: 4, r: 10}, {c: 5, r: 10}, {c: 6, r: 10}, {c: 7, r: 10}, {c: 8, r: 10},
+            {c: 9, r: 10}, {c: 9, r: 9}, {c: 9, r: 8}, {c: 9, r: 7}, {c: 9, r: 6},
+            {c: 9, r: 5}, {c: 9, r: 4}, {c: 9, r: 3}, {c: 9, r: 2}, {c: 10, r: 2},
+            {c: 11, r: 2} // Base
+        ];
+
+        let pathMap = Array(GRID_ROWS).fill().map(() => Array(GRID_COLS).fill(false));
+        pathCoords.forEach(p => pathMap[p.r][p.c] = true);
+
+        // Game State
+        let isPlaying = false;
+        let lastTime = 0;
+        let cash = 100;
+        let wave = 1;
+        let baseHealth = 10;
+        
+        let turrets = [];
+        let enemies = [];
+        let particles = [];
+        let lasers = []; // Visual lines to draw for 1 frame
+
+        let waveTimer = 0;
+        let spawnTimer = 0;
+        let enemiesToSpawn = 0;
+        
+        const TOWER_COST = 50;
+
+        function initGame() {
+            resize();
+            cash = 150;
+            wave = 1;
+            baseHealth = 10;
+            updateUI();
+            
+            turrets = [];
+            enemies = [];
+            particles = [];
+            
+            waveTimer = 3.0; // time until first wave
+            enemiesToSpawn = 5;
+            spawnTimer = 0;
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateUI() {
+            cashEl.textContent = cash;
+            waveEl.textContent = wave;
+            healthEl.textContent = baseHealth;
+            countEl.textContent = enemies.length;
+        }
+
+        // Input
+        container.addEventListener('mousedown', handleTap);
+        container.addEventListener('touchstart', e => {
+            // Fix: Only preventDefault for canvas taps, not modal buttons
+            if (e.target.tagName !== 'BUTTON') {
+                e.preventDefault();
+                handleTap(e.touches[0]);
+            }
+        }, {passive: false});
+
+        function handleTap(e) {
+            if (!isPlaying) return;
+            let rect = canvas.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+            let y = e.clientY - rect.top;
+            
+            let c = Math.floor(x / CELL_W);
+            let r = Math.floor(y / CELL_H);
+            
+            // Validate build
+            if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) return;
+            if (pathMap[r][c]) return; // Can't build on path
+            
+            // Check if turret already exists
+            if (turrets.some(t => t.c === c && t.r === r)) return;
+            
+            if (cash >= TOWER_COST) {
+                cash -= TOWER_COST;
+                turrets.push({
+                    c: c, r: r,
+                    x: c * CELL_W + CELL_W/2,
+                    y: r * CELL_H + CELL_H/2,
+                    range: CELL_W * 2.5,
+                    cooldown: 0,
+                    fireRate: 0.5, // seconds
+                    angle: 0
+                });
+                updateUI();
+            }
+        }
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function spawnEnemy() {
+            let startPoint = pathCoords[0];
+            let hp = 10 + (wave * 5);
+            let speed = 40 + (wave * 2);
+            enemies.push({
+                x: startPoint.c * CELL_W + CELL_W/2,
+                y: startPoint.r * CELL_H + CELL_H/2,
+                pathIndex: 0,
+                hp: hp,
+                maxHp: hp,
+                speed: speed,
+                color: '#f00'
+            });
+            updateUI();
+        }
+
+        function spawnDebris(x, y) {
+            for(let i=0; i<6; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5)*100,
+                    vy: (Math.random()-0.5)*100,
+                    life: 0.5,
+                    color: '#f00'
+                });
+            }
+        }
+
+        function update(dt) {
+            lasers = []; // clear per frame
+
+            // Wave logic
+            if (enemiesToSpawn > 0) {
+                spawnTimer -= dt;
+                if (spawnTimer <= 0) {
+                    spawnEnemy();
+                    enemiesToSpawn--;
+                    spawnTimer = 1.0; // 1 second between spawns
+                }
+            } else if (enemies.length === 0) {
+                // Wave complete
+                waveTimer -= dt;
+                if (waveTimer <= 0) {
+                    wave++;
+                    enemiesToSpawn = 5 + Math.floor(wave * 1.5);
+                    waveTimer = 3.0; // break between waves
+                    updateUI();
+                }
+            }
+
+            // Enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                
+                // Move towards next path node
+                let targetNode = pathCoords[e.pathIndex + 1];
+                if (targetNode) {
+                    let tx = targetNode.c * CELL_W + CELL_W/2;
+                    let ty = targetNode.r * CELL_H + CELL_H/2;
+                    
+                    let dx = tx - e.x;
+                    let dy = ty - e.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    let step = e.speed * dt;
+                    
+                    // Fix: Snap to node if the step exceeds the remaining distance
+                    // prevents oscillation bug where fast enemies overshoot the 2px threshold
+                    if (dist <= step) {
+                        e.x = tx;
+                        e.y = ty;
+                        e.pathIndex++;
+                    } else {
+                        e.x += (dx / dist) * step;
+                        e.y += (dy / dist) * step;
+                    }
+                } else {
+                    // Reached Base
+                    baseHealth--;
+                    enemies.splice(i, 1);
+                    updateUI();
+                    
+                    if (baseHealth <= 0) {
+                        isPlaying = false;
+                        document.getElementById('final-wave').textContent = wave;
+                        gameOverEl.classList.add('active');
+                        return;
+                    }
+                }
+            }
+
+            // Turrets
+            for (let t of turrets) {
+                t.cooldown -= dt;
+                
+                // Find target
+                let target = null;
+                let minDist = t.range;
+                
+                for (let e of enemies) {
+                    let dx = e.x - t.x;
+                    let dy = e.y - t.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        target = e;
+                    }
+                }
+                
+                if (target) {
+                    t.angle = Math.atan2(target.y - t.y, target.x - t.x);
+                    
+                    if (t.cooldown <= 0) {
+                        t.cooldown = t.fireRate;
+                        // Fire Laser
+                        target.hp -= 5;
+                        lasers.push({ x1: t.x, y1: t.y, x2: target.x, y2: target.y });
+                        
+                        if (target.hp <= 0) {
+                            cash += 10;
+                            updateUI();
+                            spawnDebris(target.x, target.y);
+                            enemies.splice(enemies.indexOf(target), 1);
+                        }
+                    }
+                }
+            }
+            
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= dt;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function drawGrid() {
+            // Draw background grid lines (done every frame in draw loop)
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Grid
+            ctx.strokeStyle = '#023302';
+            ctx.lineWidth = 1;
+            for(let c=0; c<=GRID_COLS; c++) { ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, ch); ctx.stroke(); }
+            for(let r=0; r<=GRID_ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r*CELL_H); ctx.lineTo(cw, r*CELL_H); ctx.stroke(); }
+
+            // Path
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.05)';
+            for (let p of pathCoords) {
+                ctx.fillRect(p.c * CELL_W, p.r * CELL_H, CELL_W, CELL_H);
+            }
+            // Base area
+            let baseNode = pathCoords[pathCoords.length-1];
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
+            ctx.fillRect(baseNode.c * CELL_W, baseNode.r * CELL_H, CELL_W, CELL_H);
+            ctx.strokeStyle = '#0ff';
+            ctx.strokeRect(baseNode.c * CELL_W, baseNode.r * CELL_H, CELL_W, CELL_H);
+
+            // Turrets
+            for (let t of turrets) {
+                ctx.save();
+                ctx.translate(t.x, t.y);
+                ctx.rotate(t.angle);
+                
+                // Base
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#0ff';
+                ctx.beginPath();
+                ctx.arc(0, 0, CELL_W * 0.3, 0, Math.PI*2);
+                ctx.stroke();
+                
+                // Barrel
+                ctx.fillStyle = '#0ff';
+                ctx.fillRect(0, -3, CELL_W * 0.4, 6);
+                
+                ctx.restore();
+            }
+
+            // Lasers
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#fff';
+            for (let l of lasers) {
+                ctx.beginPath();
+                ctx.moveTo(l.x1, l.y1);
+                ctx.lineTo(l.x2, l.y2);
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+
+            // Enemies
+            for (let e of enemies) {
+                ctx.fillStyle = '#000';
+                ctx.strokeStyle = '#f00';
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#f00';
+                
+                let s = CELL_W * 0.4;
+                ctx.fillRect(e.x - s/2, e.y - s/2, s, s);
+                ctx.strokeRect(e.x - s/2, e.y - s/2, s, s);
+                ctx.shadowBlur = 0;
+                
+                // Health bar
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(e.x - s/2, e.y - s/2 - 6, s * (e.hp / e.maxHp), 3);
+            }
+
+            // Particles
+            for(let p of particles) {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.life * 2); // scale life to alpha
+                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.globalAlpha = 1;
+            }
+            
+            // Draw Range circle if building
+            // (Omitted for simplicity, just tapping works)
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Setup
+        resize();
+        menuEl.classList.add('active');
+        draw();
+    </script>
+</body>
+</html>

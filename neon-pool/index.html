@@ -5,73 +5,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Pool</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap');
-
-        :root {
-            --bg: #090a0f;
-            --table: #0f3460;
-            --border: #16213e;
-            --pocket: #000;
-            --cue: #fff;
-            --ball: #e94560;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Audiowide&display=swap');
 
         * { box-sizing: border-box; touch-action: none; user-select: none; }
         
         body {
-            margin: 0; padding: 0; background-color: var(--bg); color: #fff;
-            font-family: 'Syncopate', sans-serif; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+            margin: 0; padding: 0;
+            background-color: #0b0213;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Audiowide', cursive;
+            overflow: hidden;
+            color: #fff;
         }
 
         #game-container {
-            position: relative; width: 100%; height: 100%; max-width: 800px; max-height: 500px;
-            background-color: var(--bg); display: flex; align-items: center; justify-content: center;
+            position: relative;
+            width: 100%; max-width: 800px; aspect-ratio: 16/9; max-height: 800px;
+            background: #0b0213;
+            box-shadow: 0 0 50px rgba(0,255,255,0.1);
         }
 
-        canvas { display: block; z-index: 5; box-shadow: 0 0 50px rgba(15, 52, 96, 0.8); border-radius: 10px; }
+        canvas { display: block; width: 100%; height: 100%; }
 
-        .hud {
-            position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between;
-            font-size: 20px; z-index: 10; pointer-events: none; text-shadow: 0 0 10px #00ffcc;
+        .ui-layer {
+            position: absolute; top: -40px; left: 0; width: 100%;
+            display: flex; justify-content: space-between;
+            font-size: 24px; color: #0ff; text-shadow: 0 0 10px #0ff;
         }
 
-        /* Modals */
         .modal {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(9, 10, 15, 0.9); border: 2px solid var(--ball); padding: 40px;
-            text-align: center; box-shadow: 0 0 30px rgba(233, 69, 96, 0.4); z-index: 30;
-            border-radius: 10px; pointer-events: auto; width: 85%; max-width: 450px;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 2, 19, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 10; text-align: center;
         }
-        h1 { color: var(--ball); margin-top: 0; font-size: 40px; text-shadow: 0 0 20px var(--ball); margin-bottom: 10px; }
-        p { color: #aaa; line-height: 1.5; font-size: 14px; margin-bottom: 30px; }
-        button {
-            background: transparent; color: var(--ball); border: 2px solid var(--ball);
-            padding: 15px 40px; font-family: 'Syncopate', sans-serif; font-size: 18px; cursor: pointer; transition: 0.2s;
-            border-radius: 5px; box-shadow: 0 0 15px rgba(233, 69, 96, 0.2); text-transform: uppercase;
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 50px; margin: 0 0 10px 0; color: #f0f; text-shadow: 0 0 20px #f0f;}
+        .modal p { font-size: 18px; margin-bottom: 40px; color: #fff;}
+        
+        .btn {
+            background: transparent; color: #0ff; border: 2px solid #0ff;
+            padding: 15px 40px; font-family: 'Audiowide', cursive; font-size: 20px;
+            cursor: pointer; text-transform: uppercase; border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,255,255,0.4), inset 0 0 10px rgba(0,255,255,0.2);
+            transition: all 0.2s;
         }
-        button:hover { background: var(--ball); color: #000; box-shadow: 0 0 30px var(--ball); }
-        .hidden { display: none !important; }
+        .btn:active { background: #0ff; color: #000; box-shadow: 0 0 30px #0ff; }
+
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-        <div class="hud">
-            <div id="scoreEl">BALLS: 15</div>
-            <div id="shotsEl">SHOTS: 0</div>
-        </div>
 
-        <div id="start-screen" class="modal">
-            <h1>NEON POOL</h1>
-            <p>Drag backwards from the cue ball to aim and shoot.<br>Clear all red balls in the fewest shots.</p>
-            <button id="start-btn">BREAK</button>
+    <div style="position:relative; width: 100%; max-width: 800px; aspect-ratio:16/9;">
+        <div class="ui-layer">
+            <div>SUNK: <span id="score">0</span>/6</div>
+            <div>SHOTS: <span id="shots">0</span></div>
         </div>
         
-        <div id="game-over-screen" class="modal hidden">
-            <h1 id="result-title">CLEARED</h1>
-            <p id="final-stats">Total Shots: 0</p>
-            <button id="restart-btn">PLAY AGAIN</button>
+        <div id="game-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div class="modal" id="menu">
+                <h1>NEON POOL</h1>
+                <p>Drag from the white ball to aim.<br>Sink all colored balls.</p>
+                <button class="btn" id="start-btn">RACK EM</button>
+            </div>
+            
+            <div class="modal" id="game-over">
+                <h1 id="go-title">TABLE CLEARED</h1>
+                <p>Total Shots: <span id="final-shots">0</span></p>
+                <button class="btn" id="restart-btn">PLAY AGAIN</button>
+            </div>
         </div>
     </div>
 
@@ -79,304 +85,412 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+        const shotsEl = document.getElementById('shots');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
         
-        let width = 700;
-        let height = 350;
-        let scale = 1;
-        
+        let cw, ch;
         function resize() {
-            let cw = container.clientWidth - 20;
-            let ch = container.clientHeight - 20;
-            
-            // Maintain 2:1 aspect ratio
-            if (cw / 2 < ch) {
-                width = cw; height = cw / 2;
-            } else {
-                height = ch; width = ch * 2;
-            }
-            canvas.width = width; canvas.height = height;
-            scale = width / 700; // base logic on 700x350
+            cw = container.clientWidth;
+            ch = container.clientHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+            initTable(); // Redraw static parts if paused
         }
-        window.addEventListener('resize', resize); resize();
+        window.addEventListener('resize', resize);
 
-        let isRunning = false;
-        let shots = 0;
-        
-        // Physics constants
+        // Physics Constants
         const FRICTION = 0.985;
-        const BALL_RADIUS = 10;
-        const POCKET_RADIUS = 20;
-        const MIN_SPEED = 0.1;
+        const MIN_VELOCITY = 5; // px/s to stop completely
+        const BALL_RADIUS = 12;
+        const POCKET_RADIUS = 24;
+        
+        let isPlaying = false;
+        let lastTime = 0;
+        let score = 0;
+        let shots = 0;
         
         let balls = [];
         let pockets = [];
+        let bounds = { x: 30, y: 30, w: 0, h: 0 };
         
-        let dragStart = null;
-        let dragCurrent = null;
-        let isAiming = false;
-        
+        // Input state
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let dragCurrent = { x: 0, y: 0 };
+
         function initTable() {
-            // Setup pockets (scaled)
-            pockets = [
-                {x: 0, y: 0}, {x: 350, y: -5}, {x: 700, y: 0},
-                {x: 0, y: 350}, {x: 350, y: 355}, {x: 700, y: 350}
-            ];
+            bounds.w = cw - 60;
+            bounds.h = ch - 60;
             
+            pockets = [
+                {x: bounds.x, y: bounds.y},
+                {x: bounds.x + bounds.w/2, y: bounds.y - 5}, // Side pocket slightly offset
+                {x: bounds.x + bounds.w, y: bounds.y},
+                {x: bounds.x, y: bounds.y + bounds.h},
+                {x: bounds.x + bounds.w/2, y: bounds.y + bounds.h + 5},
+                {x: bounds.x + bounds.w, y: bounds.y + bounds.h}
+            ];
+        }
+
+        function spawnBalls() {
             balls = [];
             // Cue ball
-            balls.push({ id: 'cue', x: 150, y: 175, vx: 0, vy: 0, color: 'var(--cue)', active: true });
+            balls.push({ id: 0, x: bounds.x + bounds.w * 0.25, y: bounds.y + bounds.h / 2, vx: 0, vy: 0, color: '#fff', glow: '#fff' });
             
-            // Triangle of red balls
-            let startX = 500;
-            let startY = 175;
-            let rows = 5;
-            for(let row=0; row<rows; row++) {
-                for(let col=0; col<=row; col++) {
-                    let x = startX + row * (BALL_RADIUS * 1.732); // sqrt(3)
-                    let y = startY - (row * BALL_RADIUS) + (col * BALL_RADIUS * 2);
-                    balls.push({ id: `red-${row}-${col}`, x: x, y: y, vx: 0, vy: 0, color: 'var(--ball)', active: true });
+            // Triangle of 6 balls (3 cyan, 3 magenta)
+            let startX = bounds.x + bounds.w * 0.7;
+            let startY = bounds.y + bounds.h / 2;
+            let spacing = BALL_RADIUS * 2.1;
+            
+            let colors = [
+                {c: '#0ff', g: '#0ff'}, {c: '#f0f', g: '#f0f'},
+                {c: '#0ff', g: '#0ff'}, {c: '#f0f', g: '#f0f'},
+                {c: '#0ff', g: '#0ff'}, {c: '#f0f', g: '#f0f'}
+            ];
+            
+            let idx = 0;
+            // 3 columns: 1, 2, 3
+            for (let col = 0; col < 3; col++) {
+                for (let row = 0; row <= col; row++) {
+                    let bx = startX + col * spacing * Math.cos(Math.PI/6);
+                    let by = startY + (row - col/2) * spacing;
+                    balls.push({ id: idx+1, x: bx, y: by, vx: 0, vy: 0, color: colors[idx].c, glow: colors[idx].g });
+                    idx++;
                 }
             }
         }
 
-        // Elastic collision between two circles
-        function resolveCollision(b1, b2) {
-            let dx = b2.x - b1.x;
-            let dy = b2.y - b1.y;
-            let distance = Math.hypot(dx, dy);
+        function initGame() {
+            resize(); // sets cw, ch, bounds
+            score = 0;
+            shots = 0;
+            scoreEl.textContent = score;
+            shotsEl.textContent = shots;
+            
+            spawnBalls();
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
 
-            if (distance < BALL_RADIUS * 2) {
-                // Overlap resolution
-                let overlap = (BALL_RADIUS * 2) - distance;
-                let nx = dx / distance;
-                let ny = dy / distance;
+        // Input Handling
+        function getMousePos(e) {
+            let rect = canvas.getBoundingClientRect();
+            if (e.touches) {
+                return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+            }
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
 
-                b1.x -= nx * overlap / 2;
-                b1.y -= ny * overlap / 2;
-                b2.x += nx * overlap / 2;
-                b2.y += ny * overlap / 2;
+        function isBallsMoving() {
+            return balls.some(b => Math.abs(b.vx) > 0 || Math.abs(b.vy) > 0);
+        }
 
-                // Momentum transfer
-                let kx = (b1.vx - b2.vx);
-                let ky = (b1.vy - b2.vy);
-                let p = 2.0 * (nx * kx + ny * ky) / 2; // mass is 1 for both
-
-                b1.vx -= p * nx;
-                b1.vy -= p * ny;
-                b2.vx += p * nx;
-                b2.vy += p * ny;
+        function handlePointerDown(e) {
+            if (!isPlaying || isBallsMoving()) return;
+            let pos = getMousePos(e);
+            let cue = balls[0];
+            if (!cue) return;
+            
+            let dx = pos.x - cue.x;
+            let dy = pos.y - cue.y;
+            // Allow grabbing anywhere near cue ball
+            if (Math.sqrt(dx*dx + dy*dy) < 50) {
+                isDragging = true;
+                dragStart = pos;
+                dragCurrent = pos;
             }
         }
 
-        function update() {
-            let moving = false;
-            let activeReds = 0;
+        function handlePointerMove(e) {
+            if (!isDragging) return;
+            dragCurrent = getMousePos(e);
+        }
 
-            for(let i=0; i<balls.length; i++) {
-                let b = balls[i];
-                if (!b.active) continue;
-                
-                if (b.id !== 'cue') activeReds++;
+        function handlePointerUp(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            let cue = balls[0];
+            if (!cue) return;
+            
+            let dx = cue.x - dragCurrent.x;
+            let dy = cue.y - dragCurrent.y;
+            
+            // Multiply drag distance by power factor
+            cue.vx = dx * 8;
+            cue.vy = dy * 8;
+            
+            // Cap max speed
+            let speed = Math.sqrt(cue.vx*cue.vx + cue.vy*cue.vy);
+            if (speed > 2000) {
+                cue.vx = (cue.vx / speed) * 2000;
+                cue.vy = (cue.vy / speed) * 2000;
+            }
+            
+            if (speed > 50) {
+                shots++;
+                shotsEl.textContent = shots;
+            }
+        }
 
-                // Friction
-                b.vx *= FRICTION;
-                b.vy *= FRICTION;
-                if (Math.abs(b.vx) < MIN_SPEED) b.vx = 0;
-                if (Math.abs(b.vy) < MIN_SPEED) b.vy = 0;
-                
-                if (b.vx !== 0 || b.vy !== 0) moving = true;
+        container.addEventListener('mousedown', handlePointerDown);
+        container.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+        
+        container.addEventListener('touchstart', e => {
+            // Fix: Only preventDefault for game canvas interaction, not for modal buttons
+            if (e.target.tagName !== 'BUTTON') {
+                e.preventDefault();
+                handlePointerDown(e);
+            }
+        }, {passive: false});
+        container.addEventListener('touchmove', e => { e.preventDefault(); handlePointerMove(e); }, {passive: false});
+        window.addEventListener('touchend', handlePointerUp);
 
-                b.x += b.vx;
-                b.y += b.vy;
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
 
-                // Wall collisions (bounce)
-                if (b.x - BALL_RADIUS < 0) { b.x = BALL_RADIUS; b.vx *= -1; }
-                if (b.x + BALL_RADIUS > 700) { b.x = 700 - BALL_RADIUS; b.vx *= -1; }
-                if (b.y - BALL_RADIUS < 0) { b.y = BALL_RADIUS; b.vy *= -1; }
-                if (b.y + BALL_RADIUS > 350) { b.y = 350 - BALL_RADIUS; b.vy *= -1; }
+        // Physics
+        function circleIntersect(b1, b2) {
+            let dx = b2.x - b1.x;
+            let dy = b2.y - b1.y;
+            let distSq = dx*dx + dy*dy;
+            let radSq = (BALL_RADIUS*2)*(BALL_RADIUS*2);
+            return distSq < radSq;
+        }
 
-                // Pocket detection
-                for (let p of pockets) {
-                    if (Math.hypot(b.x - p.x, b.y - p.y) < POCKET_RADIUS) {
-                        b.active = false;
-                        if (b.id === 'cue') {
-                            // Scratch: reset cue ball
-                            b.x = 150; b.y = 175; b.vx = 0; b.vy = 0; b.active = true;
+        function resolveCollision(b1, b2) {
+            let dx = b2.x - b1.x;
+            let dy = b2.y - b1.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist === 0) { dx = 1; dy = 0; dist = 1; } // prevent NaN
+            
+            // Minimum translation distance to push balls apart
+            let overlap = (BALL_RADIUS * 2) - dist;
+            let nx = dx / dist;
+            let ny = dy / dist;
+            
+            b1.x -= nx * overlap / 2;
+            b1.y -= ny * overlap / 2;
+            b2.x += nx * overlap / 2;
+            b2.y += ny * overlap / 2;
+
+            // Elastic collision (1D collision along normal)
+            let kx = (b1.vx - b2.vx);
+            let ky = (b1.vy - b2.vy);
+            
+            // Vector projection
+            let p = 2.0 * (nx * kx + ny * ky) / 2.0; // mass=1
+            
+            b1.vx = b1.vx - p * nx;
+            b1.vy = b1.vy - p * ny;
+            b2.vx = b2.vx + p * nx;
+            b2.vy = b2.vy + p * ny;
+        }
+
+        function update(dt) {
+            // Apply physics steps
+            const substeps = 4;
+            const sdt = dt / substeps;
+            
+            for (let s = 0; s < substeps; s++) {
+                // Update pos
+                for (let i = 0; i < balls.length; i++) {
+                    let b = balls[i];
+                    b.x += b.vx * sdt;
+                    b.y += b.vy * sdt;
+                    
+                    // Friction
+                    b.vx *= Math.pow(FRICTION, sdt * 60);
+                    b.vy *= Math.pow(FRICTION, sdt * 60);
+                    
+                    if (Math.abs(b.vx) < MIN_VELOCITY) b.vx = 0;
+                    if (Math.abs(b.vy) < MIN_VELOCITY) b.vy = 0;
+
+                    // Wall Collisions
+                    if (b.x - BALL_RADIUS < bounds.x) {
+                        b.x = bounds.x + BALL_RADIUS; b.vx *= -0.8;
+                    } else if (b.x + BALL_RADIUS > bounds.x + bounds.w) {
+                        b.x = bounds.x + bounds.w - BALL_RADIUS; b.vx *= -0.8;
+                    }
+                    
+                    if (b.y - BALL_RADIUS < bounds.y) {
+                        b.y = bounds.y + BALL_RADIUS; b.vy *= -0.8;
+                    } else if (b.y + BALL_RADIUS > bounds.y + bounds.h) {
+                        b.y = bounds.y + bounds.h - BALL_RADIUS; b.vy *= -0.8;
+                    }
+                }
+
+                // Ball-Ball Collisions
+                for (let i = 0; i < balls.length; i++) {
+                    for (let j = i + 1; j < balls.length; j++) {
+                        if (circleIntersect(balls[i], balls[j])) {
+                            resolveCollision(balls[i], balls[j]);
                         }
                     }
                 }
             }
 
-            // Ball to ball collisions
-            for(let i=0; i<balls.length; i++) {
-                for(let j=i+1; j<balls.length; j++) {
-                    if (balls[i].active && balls[j].active) {
-                        resolveCollision(balls[i], balls[j]);
+            // Check Pockets
+            for (let i = balls.length - 1; i >= 0; i--) {
+                let b = balls[i];
+                let sunk = false;
+                for (let p of pockets) {
+                    let dx = b.x - p.x;
+                    let dy = b.y - p.y;
+                    if (dx*dx + dy*dy < POCKET_RADIUS*POCKET_RADIUS) {
+                        sunk = true;
+                        break;
                     }
                 }
-            }
-
-            document.getElementById('scoreEl').textContent = `BALLS: ${activeReds}`;
-            document.getElementById('shotsEl').textContent = `SHOTS: ${shots}`;
-
-            if (activeReds === 0 && !moving) {
-                winGame();
+                
+                if (sunk) {
+                    if (b.id === 0) {
+                        // Scratch (Cue ball)
+                        b.vx = 0; b.vy = 0;
+                        b.x = bounds.x + bounds.w * 0.25;
+                        b.y = bounds.y + bounds.h / 2;
+                    } else {
+                        // Colored ball sunk
+                        balls.splice(i, 1);
+                        score++;
+                        scoreEl.textContent = score;
+                        if (score >= 6) {
+                            isPlaying = false;
+                            document.getElementById('final-shots').textContent = shots;
+                            gameOverEl.classList.add('active');
+                        }
+                    }
+                }
             }
         }
 
         function draw() {
-            ctx.clearRect(0, 0, width, height);
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Table Glow Base
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
             
-            ctx.save();
-            ctx.scale(scale, scale);
+            // Grid lines on table for sci-fi look
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            for(let i=bounds.x; i<bounds.x+bounds.w; i+=40) { ctx.beginPath(); ctx.moveTo(i, bounds.y); ctx.lineTo(i, bounds.y+bounds.h); ctx.stroke(); }
+            for(let i=bounds.y; i<bounds.y+bounds.h; i+=40) { ctx.beginPath(); ctx.moveTo(bounds.x, i); ctx.lineTo(bounds.x+bounds.w, i); ctx.stroke(); }
 
-            // Table background
-            ctx.fillStyle = 'var(--table)';
-            ctx.fillRect(0, 0, 700, 350);
+            // Table Edges (Neon)
+            ctx.strokeStyle = '#0ff';
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#0ff';
+            ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+            ctx.shadowBlur = 0;
 
-            // Draw pockets
-            ctx.fillStyle = 'var(--pocket)';
-            pockets.forEach(p => {
+            // Pockets
+            ctx.fillStyle = '#000';
+            for (let p of pockets) {
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, POCKET_RADIUS, 0, Math.PI*2);
                 ctx.fill();
-            });
-
-            // Draw balls
-            balls.forEach(b => {
-                if (!b.active) return;
-                ctx.fillStyle = b.color;
-                ctx.shadowColor = b.color;
-                ctx.shadowBlur = 10;
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, BALL_RADIUS, 0, Math.PI*2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
                 
-                // Highlight
-                ctx.fillStyle = '#fff';
+                // Pocket glow ring
+                ctx.strokeStyle = '#f0f';
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#f0f';
                 ctx.beginPath();
-                ctx.arc(b.x - 3, b.y - 3, BALL_RADIUS*0.3, 0, Math.PI*2);
-                ctx.fill();
-            });
+                ctx.arc(p.x, p.y, POCKET_RADIUS - 2, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
 
             // Aiming line
             let cue = balls[0];
-            if (isAiming && dragCurrent && cue.active && cue.vx === 0 && cue.vy === 0) {
-                let dx = dragStart.x - dragCurrent.x;
-                let dy = dragStart.y - dragCurrent.y;
+            if (isDragging && cue) {
+                let dx = dragCurrent.x - cue.x;
+                let dy = dragCurrent.y - cue.y;
+                let power = Math.min(200, Math.sqrt(dx*dx + dy*dy));
                 
-                // Power limit
-                let power = Math.min(Math.hypot(dx, dy) * 0.1, 20);
-                let angle = Math.atan2(dy, dx);
-                
-                let drawDx = Math.cos(angle) * power * 10;
-                let drawDy = Math.sin(angle) * power * 10;
+                if (power > 10) {
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    // Draw line in opposite direction of drag
+                    let dirX = -dx / Math.sqrt(dx*dx + dy*dy);
+                    let dirY = -dy / Math.sqrt(dx*dx + dy*dy);
+                    ctx.moveTo(cue.x + dirX * BALL_RADIUS, cue.y + dirY * BALL_RADIUS);
+                    ctx.lineTo(cue.x + dirX * power * 3, cue.y + dirY * power * 3);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
 
-                ctx.strokeStyle = 'rgba(0, 255, 204, 0.5)';
+            // Balls
+            for (let b of balls) {
+                // Ball core
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, BALL_RADIUS, 0, Math.PI*2);
+                ctx.fill();
+                
+                // Color overlay
+                ctx.fillStyle = b.color;
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, BALL_RADIUS, 0, Math.PI*2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                // Glow
+                ctx.strokeStyle = b.glow;
                 ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = b.glow;
                 ctx.beginPath();
-                ctx.moveTo(cue.x, cue.y);
-                ctx.lineTo(cue.x + drawDx, cue.y + drawDy);
+                ctx.arc(b.x, b.y, BALL_RADIUS, 0, Math.PI*2);
                 ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.shadowBlur = 0;
                 
-                // Cue stick visual
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.moveTo(cue.x - Math.cos(angle)*15, cue.y - Math.sin(angle)*15);
-                ctx.lineTo(cue.x - Math.cos(angle)*(15 + power*5), cue.y - Math.sin(angle)*(15 + power*5));
-                ctx.stroke();
-            }
-
-            ctx.restore();
-        }
-
-        function loop() {
-            if(!isRunning) return;
-            update();
-            draw();
-            requestAnimationFrame(loop);
-        }
-
-        function winGame() {
-            isRunning = false;
-            document.getElementById('final-stats').textContent = `Total Shots: ${shots}`;
-            document.getElementById('game-over-screen').classList.remove('hidden');
-        }
-
-        // Input
-        function getMousePos(e) {
-            let rect = canvas.getBoundingClientRect();
-            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return {
-                x: (clientX - rect.left) / scale,
-                y: (clientY - rect.top) / scale
-            };
-        }
-
-        function onDown(e) {
-            e.preventDefault();
-            let cue = balls[0];
-            // Only aim if cue ball is stopped
-            if (cue.vx === 0 && cue.vy === 0) {
-                let pos = getMousePos(e);
-                dragStart = pos;
-                dragCurrent = pos;
-                isAiming = true;
-            }
-        }
-
-        function onMove(e) {
-            if (isAiming) {
-                e.preventDefault();
-                dragCurrent = getMousePos(e);
-            }
-        }
-
-        function onUp(e) {
-            if (isAiming) {
-                isAiming = false;
-                let cue = balls[0];
-                let dx = dragStart.x - dragCurrent.x;
-                let dy = dragStart.y - dragCurrent.y;
-                
-                let power = Math.hypot(dx, dy) * 0.1;
-                if (power > 1) { // minimum threshold to shoot
-                    let angle = Math.atan2(dy, dx);
-                    power = Math.min(power, 25); // max power
-                    
-                    cue.vx = Math.cos(angle) * power;
-                    cue.vy = Math.sin(angle) * power;
-                    shots++;
+                // Motion blur/trail hint if moving fast
+                let speedSq = b.vx*b.vx + b.vy*b.vy;
+                if (speedSq > 5000) {
+                    ctx.strokeStyle = b.glow;
+                    ctx.globalAlpha = 0.3;
+                    ctx.lineWidth = BALL_RADIUS*1.5;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(b.x, b.y);
+                    ctx.lineTo(b.x - b.vx*0.05, b.y - b.vy*0.05);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
                 }
             }
         }
 
-        canvas.addEventListener('mousedown', onDown);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        
-        canvas.addEventListener('touchstart', onDown, {passive:false});
-        window.addEventListener('touchmove', onMove, {passive:false});
-        window.addEventListener('touchend', onUp);
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
 
-        function startGame() {
-            document.getElementById('start-screen').classList.add('hidden');
-            document.getElementById('game-over-screen').classList.add('hidden');
-            
-            shots = 0;
-            initTable();
-            
-            isRunning = true;
-            loop();
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
         }
 
-        document.getElementById('start-btn').addEventListener('click', startGame);
-        document.getElementById('restart-btn').addEventListener('click', startGame);
+        // Show menu
+        resize();
+        menuEl.classList.add('active');
+        draw();
     </script>
 </body>
 </html>

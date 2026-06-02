@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Whack-A-Droid</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;700&display=swap');
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #0b0c10;
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Teko', sans-serif;
+            overflow: hidden;
+            color: #66fcf1;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 600px; aspect-ratio: 1; max-height: 800px;
+            background: radial-gradient(circle at 50% 50%, #1f2833 0%, #0b0c10 100%);
+            border: 2px solid #45a29e;
+            box-shadow: inset 0 0 50px rgba(102, 252, 241, 0.1), 0 0 20px rgba(69, 162, 158, 0.5);
+            padding: 20px;
+            display: flex; flex-direction: column;
+        }
+
+        .ui-layer {
+            width: 100%; height: 60px;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 36px; padding: 0 20px;
+            border-bottom: 2px dashed #45a29e;
+            margin-bottom: 20px;
+        }
+        
+        .timer { color: #f00; text-shadow: 0 0 10px #f00; }
+
+        .grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .hatch-container {
+            position: relative; width: 100%; height: 100%;
+            background: #12141a; border-radius: 10px;
+            border: 2px solid #1f2833;
+            overflow: hidden;
+        }
+
+        /* The dark hole inside the hatch */
+        .hole {
+            position: absolute; bottom: 10px; left: 10%; width: 80%; height: 40%;
+            background: #000; border-radius: 50%;
+            box-shadow: inset 0 10px 10px rgba(0,0,0,1);
+        }
+
+        /* The entity that pops up */
+        .entity {
+            position: absolute; bottom: 15%; left: 20%; width: 60%; height: 70%;
+            background-size: cover; background-position: center;
+            transform: translateY(120%); /* hidden by default */
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: crosshair;
+        }
+
+        /* Droid variant */
+        .entity.droid {
+            background-color: #c5c6c7; border-radius: 20px 20px 0 0;
+            border: 2px solid #66fcf1; box-shadow: inset 0 0 15px #66fcf1;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .entity.droid::before { /* eye */
+            content: ''; width: 30%; height: 20%; background: #0ff;
+            border-radius: 50%; box-shadow: 0 0 10px #0ff;
+        }
+
+        /* Bomb variant */
+        .entity.bomb {
+            background-color: #333; border-radius: 50%;
+            border: 2px solid #f00; box-shadow: inset 0 0 15px #f00;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .entity.bomb::before { /* warning symbol */
+            content: '!'; color: #f00; font-size: 40px; font-weight: bold; text-shadow: 0 0 5px #f00;
+        }
+
+        /* Hatch doors covering the hole */
+        .door {
+            position: absolute; bottom: 5%; left: 5%; width: 90%; height: 50%;
+            background: linear-gradient(180deg, #1f2833 0%, #12141a 100%);
+            border: 2px solid #45a29e; border-radius: 50%;
+            transform-origin: center bottom;
+            transition: transform 0.2s;
+            pointer-events: none; /* Let clicks pass through to entity */
+        }
+
+        /* States */
+        .hatch-container.open .entity { transform: translateY(0); }
+        .hatch-container.open .door { transform: scaleY(0); opacity: 0; }
+        
+        .hatch-container.hit .entity.droid { background-color: #0ff; opacity: 0; transition: all 0.1s; transform: scale(1.2); }
+        .hatch-container.hit .entity.bomb { background-color: #f00; opacity: 0; transition: all 0.1s; transform: scale(1.5); }
+
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 12, 16, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 10; text-align: center;
+        }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        
+        .modal h1 { font-size: 60px; margin: 0 0 10px 0; color: #66fcf1; text-shadow: 0 0 20px #45a29e; font-weight: 700;}
+        .modal p { font-size: 24px; margin-bottom: 30px; color: #c5c6c7;}
+        
+        .btn {
+            background: transparent; color: #66fcf1; border: 2px solid #66fcf1;
+            padding: 10px 40px; font-family: 'Teko', sans-serif; font-size: 28px;
+            cursor: pointer; text-transform: uppercase; border-radius: 5px;
+            box-shadow: 0 0 15px rgba(102,252,241,0.2), inset 0 0 10px rgba(102,252,241,0.1);
+            transition: all 0.2s;
+        }
+        .btn:active { background: #66fcf1; color: #0b0c10; box-shadow: 0 0 30px #66fcf1; }
+
+        /* Floating score text */
+        .float-text {
+            position: absolute; font-size: 40px; font-weight: bold; pointer-events: none;
+            animation: floatUp 0.5s ease-out forwards; z-index: 5;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="ui-layer">
+            <div>SCORE: <span id="score">0</span></div>
+            <div class="timer" id="timer">30.0</div>
+        </div>
+        
+        <div class="grid" id="grid">
+            <!-- Hatches generated by JS -->
+        </div>
+
+        <div class="modal" id="menu">
+            <h1>WHACK-A-DROID</h1>
+            <p>Smash Droids. Avoid Bombs.</p>
+            <button class="btn" id="start-btn">ENGAGE</button>
+        </div>
+        <div class="modal" id="game-over">
+            <h1 id="go-title">SYSTEM HALT</h1>
+            <p>Final Score: <span id="final-score">0</span></p>
+            <button class="btn" id="restart-btn">REBOOT</button>
+        </div>
+    </div>
+
+    <script>
+        const gridEl = document.getElementById('grid');
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const menuEl = document.getElementById('menu');
+        const gameOverEl = document.getElementById('game-over');
+        const container = document.getElementById('game-container');
+        
+        let score = 0;
+        let timeLeft = 30.0;
+        let isPlaying = false;
+        let lastTime = 0;
+        let hatches = [];
+        
+        // Spawn rates
+        let spawnTimer = 0;
+        let spawnInterval = 1.0;
+        
+        function createGrid() {
+            gridEl.innerHTML = '';
+            hatches = [];
+            for (let i = 0; i < 9; i++) {
+                let hatch = document.createElement('div');
+                hatch.className = 'hatch-container';
+                hatch.dataset.index = i;
+                
+                let hole = document.createElement('div');
+                hole.className = 'hole';
+                
+                let entity = document.createElement('div');
+                entity.className = 'entity droid';
+                
+                let door = document.createElement('div');
+                door.className = 'door';
+                
+                hatch.appendChild(hole);
+                hatch.appendChild(entity);
+                hatch.appendChild(door);
+                
+                // Add click listener to entity
+                entity.addEventListener('mousedown', (e) => hitEntity(i, e));
+                entity.addEventListener('touchstart', (e) => { e.preventDefault(); hitEntity(i, e); }, {passive: false});
+                
+                gridEl.appendChild(hatch);
+                hatches.push({
+                    el: hatch,
+                    entityEl: entity,
+                    active: false,
+                    type: 'droid', // 'droid' or 'bomb'
+                    timer: 0,
+                    hideTimeout: null  // Fix: track timeout to prevent race condition
+                });
+            }
+        }
+
+        function initGame() {
+            score = 0;
+            timeLeft = 30.0;
+            spawnInterval = 1.0;
+            scoreEl.textContent = score;
+            timerEl.textContent = timeLeft.toFixed(1);
+            
+            hatches.forEach(h => {
+                h.active = false;
+                h.el.classList.remove('open', 'hit');
+            });
+            
+            isPlaying = true;
+            menuEl.classList.remove('active');
+            gameOverEl.classList.remove('active');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnEntity() {
+            // Find inactive hatches
+            let available = hatches.filter(h => !h.active);
+            if (available.length === 0) return;
+            
+            let hatch = available[Math.floor(Math.random() * available.length)];
+            
+            // 20% chance for bomb
+            let isBomb = Math.random() < 0.2;
+            hatch.type = isBomb ? 'bomb' : 'droid';
+            
+            hatch.entityEl.className = `entity ${hatch.type}`;
+            hatch.el.classList.remove('hit');
+            // Fix: Clear any pending hide timeout from a previous hit before opening
+            if (hatch.hideTimeout) { clearTimeout(hatch.hideTimeout); hatch.hideTimeout = null; }
+            hatch.el.classList.add('open');
+            hatch.active = true;
+            
+            // Stay duration (shorter as score goes up)
+            let stayTime = 1.5 - Math.min(1.0, score * 0.02);
+            hatch.timer = stayTime;
+        }
+
+        function showFloatingText(text, color, x, y) {
+            let el = document.createElement('div');
+            el.className = 'float-text';
+            el.textContent = text;
+            el.style.color = color;
+            el.style.textShadow = `0 0 10px ${color}`;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 500);
+        }
+
+        function hitEntity(index, e) {
+            if (!isPlaying) return;
+            let hatch = hatches[index];
+            if (!hatch.active) return;
+            
+            let rect = container.getBoundingClientRect();
+            let x, y;
+            if (e.touches) {
+                x = e.touches[0].clientX - rect.left - 20;
+                y = e.touches[0].clientY - rect.top - 20;
+            } else {
+                x = e.clientX - rect.left - 20;
+                y = e.clientY - rect.top - 20;
+            }
+
+            hatch.active = false;
+            hatch.el.classList.add('hit');
+            // Fix: Store timeout ref and clear previous one to prevent race condition
+            if (hatch.hideTimeout) clearTimeout(hatch.hideTimeout);
+            hatch.hideTimeout = setTimeout(() => { hatch.el.classList.remove('open'); hatch.hideTimeout = null; }, 100);
+            
+            if (hatch.type === 'droid') {
+                score += 10;
+                scoreEl.textContent = score;
+                showFloatingText('+10', '#0ff', x, y);
+            } else if (hatch.type === 'bomb') {
+                score -= 20;
+                if (score < 0) score = 0;
+                scoreEl.textContent = score;
+                timeLeft -= 5.0; // Penalty
+                showFloatingText('CRITICAL', '#f00', x, y);
+                
+                // Shake container
+                container.style.transform = 'translate(10px, 10px)';
+                setTimeout(() => container.style.transform = 'translate(-10px, -10px)', 50);
+                setTimeout(() => container.style.transform = 'translate(0, 0)', 100);
+            }
+        }
+
+        document.getElementById('start-btn').addEventListener('click', initGame);
+        document.getElementById('restart-btn').addEventListener('click', initGame);
+
+        function update(dt) {
+            timeLeft -= dt;
+            if (timeLeft <= 0) {
+                timeLeft = 0;
+                timerEl.textContent = "0.0";
+                isPlaying = false;
+                document.getElementById('final-score').textContent = score;
+                gameOverEl.classList.add('active');
+                return;
+            }
+            timerEl.textContent = timeLeft.toFixed(1);
+
+            // Spawner
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+                spawnEntity();
+                // Spawn multiple sometimes
+                if (Math.random() < 0.3) spawnEntity();
+                
+                spawnInterval = Math.max(0.4, 1.2 - (score * 0.01));
+                spawnTimer = spawnInterval;
+            }
+
+            // Update active hatches
+            hatches.forEach(h => {
+                if (h.active) {
+                    h.timer -= dt;
+                    if (h.timer <= 0) {
+                        h.active = false;
+                        h.el.classList.remove('open');
+                    }
+                }
+            });
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+
+            update(dt);
+
+            if (isPlaying) requestAnimationFrame(gameLoop);
+        }
+
+        // Setup
+        createGrid();
+        menuEl.classList.add('active');
+    </script>
+</body>
+</html>
