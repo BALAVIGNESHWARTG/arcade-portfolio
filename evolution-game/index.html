@@ -1,2 +1,463 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: evolution-game</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>evolution-game - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Evolution: Cellular Automata</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #03080c;
+            color: #0ff;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0, 255, 255, 0.05);
+            border-bottom: 1px solid #0ff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 8px #0ff;
+            letter-spacing: 2px;
+        }
+
+        .generation {
+            font-size: 18px;
+            color: #fff;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            #main-container { flex-direction: column; }
+        }
+
+        #canvas-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            background: radial-gradient(circle at center, #0a111a 0%, #03080c 100%);
+        }
+
+        canvas {
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid #0ff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+            cursor: pointer;
+        }
+
+        /* Toolbar */
+        #toolbar {
+            width: 300px;
+            background: rgba(0, 255, 255, 0.05);
+            border-left: 1px solid #0ff;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 768px) {
+            #toolbar { width: 100%; border-left: none; border-top: 1px solid #0ff; height: 250px; flex-direction: row; flex-wrap: wrap; align-content: flex-start; }
+        }
+
+        .tool-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .tool-group { min-width: 120px; flex: 1; }
+        }
+
+        .tool-title {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: transparent;
+            border: 1px solid #0ff;
+            color: #0ff;
+            padding: 10px;
+            font-family: inherit;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+            flex: 1;
+        }
+
+        button:hover {
+            background: #0ff;
+            color: #000;
+        }
+
+        button.active {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 10px #0ff;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="title">EVOLUTION_OS</div>
+        <div class="generation">GEN: <span id="gen-count">0</span></div>
+    </header>
+
+    <div id="main-container">
+        
+        <div id="canvas-wrapper">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+        </div>
+
+        <div id="toolbar">
+            
+            <div class="tool-group">
+                <div class="tool-title">Playback</div>
+                <div class="controls">
+                    <button id="btn-play">PLAY</button>
+                    <button id="btn-step">STEP</button>
+                </div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-title">Speed (FPS): <span id="speed-val">10</span></div>
+                <input type="range" id="speed-slider" min="1" max="60" value="10">
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-title">Presets</div>
+                <div class="controls">
+                    <button onclick="loadPreset('glider')">Glider</button>
+                    <button onclick="loadPreset('gun')">Gosper Gun</button>
+                </div>
+                <div class="controls">
+                    <button onclick="loadPreset('pulsar')">Pulsar</button>
+                    <button onclick="loadPreset('random')">Random</button>
+                </div>
+            </div>
+
+            <div class="tool-group" style="margin-top: auto;">
+                <button id="btn-clear" style="border-color: #f0f; color: #f0f;">CLEAR GRID</button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const genEl = document.getElementById('gen-count');
+        
+        const CELL_SIZE = 10;
+        let cols = Math.floor(canvas.width / CELL_SIZE);
+        let rows = Math.floor(canvas.height / CELL_SIZE);
+        
+        let grid = [];
+        let nextGrid = [];
+        let generation = 0;
+        
+        let isPlaying = false;
+        let isDrawing = false;
+        let drawState = 1; // 1 for drawing, 0 for erasing
+        
+        let fps = 10;
+        let lastFrameTime = 0;
+
+        // --- Initialization ---
+        function initGrids() {
+            grid = new Array(cols).fill(null).map(() => new Array(rows).fill(0));
+            nextGrid = new Array(cols).fill(null).map(() => new Array(rows).fill(0));
+        }
+
+        function resize() {
+            let wrapper = document.getElementById('canvas-wrapper');
+            // Round down to nearest CELL_SIZE
+            canvas.width = Math.floor(wrapper.clientWidth / CELL_SIZE) * CELL_SIZE;
+            canvas.height = Math.floor(wrapper.clientHeight / CELL_SIZE) * CELL_SIZE;
+            
+            let oldCols = cols;
+            let oldRows = rows;
+            
+            cols = canvas.width / CELL_SIZE;
+            rows = canvas.height / CELL_SIZE;
+            
+            // Preserve existing grid data
+            let newGrid = new Array(cols).fill(null).map(() => new Array(rows).fill(0));
+            for(let i = 0; i < Math.min(oldCols, cols); i++) {
+                for(let j = 0; j < Math.min(oldRows, rows); j++) {
+                    newGrid[i][j] = grid[i][j];
+                }
+            }
+            grid = newGrid;
+            nextGrid = new Array(cols).fill(null).map(() => new Array(rows).fill(0));
+            
+            draw();
+        }
+        window.addEventListener('resize', resize);
+
+        // --- Game of Life Logic ---
+        function countNeighbors(grid, x, y) {
+            let sum = 0;
+            for (let i = -1; i < 2; i++) {
+                for (let j = -1; j < 2; j++) {
+                    // Wrap around (toroidal array)
+                    let col = (x + i + cols) % cols;
+                    let row = (y + j + rows) % rows;
+                    sum += grid[col][row];
+                }
+            }
+            sum -= grid[x][y];
+            return sum;
+        }
+
+        function step() {
+            for (let i = 0; i < cols; i++) {
+                for (let j = 0; j < rows; j++) {
+                    let state = grid[i][j];
+                    let neighbors = countNeighbors(grid, i, j);
+
+                    // Rules of Life
+                    if (state === 0 && neighbors === 3) {
+                        nextGrid[i][j] = 1;
+                    } else if (state === 1 && (neighbors < 2 || neighbors > 3)) {
+                        nextGrid[i][j] = 0;
+                    } else {
+                        nextGrid[i][j] = state;
+                    }
+                }
+            }
+
+            // Swap
+            let temp = grid;
+            grid = nextGrid;
+            nextGrid = temp;
+            
+            generation++;
+            genEl.innerText = generation;
+            draw();
+        }
+
+        // --- Rendering ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid lines (faint)
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            for (let i = 0; i <= cols; i++) {
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, canvas.height);
+            }
+            for (let j = 0; j <= rows; j++) {
+                ctx.moveTo(0, j * CELL_SIZE);
+                ctx.lineTo(canvas.width, j * CELL_SIZE);
+            }
+            ctx.stroke();
+
+            // Draw cells
+            ctx.fillStyle = '#0ff';
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#0ff';
+            for (let i = 0; i < cols; i++) {
+                for (let j = 0; j < rows; j++) {
+                    if (grid[i][j] === 1) {
+                        ctx.fillRect(i * CELL_SIZE + 1, j * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+                    }
+                }
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        // --- Main Loop ---
+        function loop(timestamp) {
+            if (isPlaying) {
+                let interval = 1000 / fps;
+                if (timestamp - lastFrameTime > interval) {
+                    step();
+                    lastFrameTime = timestamp;
+                }
+            }
+            requestAnimationFrame(loop);
+        }
+
+        // --- Interaction ---
+        function toggleCell(e) {
+            let rect = canvas.getBoundingClientRect();
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            let x = Math.floor((clientX - rect.left) / CELL_SIZE);
+            let y = Math.floor((clientY - rect.top) / CELL_SIZE);
+            
+            if (x >= 0 && x < cols && y >= 0 && y < rows) {
+                grid[x][y] = drawState;
+                draw();
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            let rect = canvas.getBoundingClientRect();
+            let x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+            let y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+            if(x >=0 && x < cols && y >=0 && y < rows) {
+                drawState = grid[x][y] ? 0 : 1; // toggle to decide drawing or erasing
+                grid[x][y] = drawState;
+                draw();
+            }
+        });
+        window.addEventListener('mousemove', (e) => { if (isDrawing) toggleCell(e); });
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDrawing = true;
+            let rect = canvas.getBoundingClientRect();
+            let x = Math.floor((e.touches[0].clientX - rect.left) / CELL_SIZE);
+            let y = Math.floor((e.touches[0].clientY - rect.top) / CELL_SIZE);
+            if(x >=0 && x < cols && y >=0 && y < rows) {
+                drawState = grid[x][y] ? 0 : 1;
+                grid[x][y] = drawState;
+                draw();
+            }
+        }, {passive:false});
+        window.addEventListener('touchmove', (e) => { if (isDrawing) { e.preventDefault(); toggleCell(e); } }, {passive:false});
+        window.addEventListener('touchend', () => isDrawing = false);
+
+        // --- UI Controls ---
+        const btnPlay = document.getElementById('btn-play');
+        btnPlay.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            btnPlay.innerText = isPlaying ? 'PAUSE' : 'PLAY';
+            btnPlay.className = isPlaying ? 'active' : '';
+        });
+
+        document.getElementById('btn-step').addEventListener('click', () => {
+            isPlaying = false;
+            btnPlay.innerText = 'PLAY';
+            btnPlay.className = '';
+            step();
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            initGrids();
+            generation = 0;
+            genEl.innerText = 0;
+            draw();
+        });
+
+        document.getElementById('speed-slider').addEventListener('input', (e) => {
+            fps = e.target.value;
+            document.getElementById('speed-val').innerText = fps;
+        });
+
+        // --- Presets ---
+        window.loadPreset = function(type) {
+            initGrids();
+            generation = 0;
+            genEl.innerText = 0;
+            let cx = Math.floor(cols / 2);
+            let cy = Math.floor(rows / 2);
+
+            if (type === 'random') {
+                for (let i = 0; i < cols; i++) {
+                    for (let j = 0; j < rows; j++) {
+                        grid[i][j] = Math.random() > 0.8 ? 1 : 0;
+                    }
+                }
+            } else if (type === 'glider') {
+                grid[cx][cy-1] = 1;
+                grid[cx+1][cy] = 1;
+                grid[cx-1][cy+1] = 1;
+                grid[cx][cy+1] = 1;
+                grid[cx+1][cy+1] = 1;
+            } else if (type === 'pulsar') {
+                let p = [
+                    [2,4], [3,4], [4,4], [8,4], [9,4], [10,4],
+                    [0,6], [5,6], [7,6], [12,6],
+                    [0,7], [5,7], [7,7], [12,7],
+                    [0,8], [5,8], [7,8], [12,8],
+                    [2,10], [3,10], [4,10], [8,10], [9,10], [10,10],
+                    [2,12], [3,12], [4,12], [8,12], [9,12], [10,12],
+                    [0,14], [5,14], [7,14], [12,14],
+                    [0,15], [5,15], [7,15], [12,15],
+                    [0,16], [5,16], [7,16], [12,16],
+                    [2,18], [3,18], [4,18], [8,18], [9,18], [10,18]
+                ];
+                // Offset to center
+                p.forEach(coords => {
+                    let x = cx - 6 + coords[0];
+                    let y = cy - 11 + coords[1];
+                    if(x >= 0 && x < cols && y >= 0 && y < rows) grid[x][y] = 1;
+                });
+            } else if (type === 'gun') {
+                // Gosper Glider Gun
+                let gun = [
+                    [1,5],[1,6],[2,5],[2,6],
+                    [11,5],[11,6],[11,7],[12,4],[12,8],[13,3],[14,3],[13,9],[14,9],
+                    [15,6],[16,4],[16,8],[17,5],[17,6],[17,7],[18,6],
+                    [21,3],[21,4],[21,5],[22,3],[22,4],[22,5],[23,2],[23,6],
+                    [25,1],[25,2],[25,6],[25,7],
+                    [35,3],[35,4],[36,3],[36,4]
+                ];
+                // Offset top-left
+                gun.forEach(coords => {
+                    let x = 5 + coords[0];
+                    let y = 5 + coords[1];
+                    if(x >= 0 && x < cols && y >= 0 && y < rows) grid[x][y] = 1;
+                });
+            }
+            draw();
+        }
+
+        // Init
+        initGrids();
+        setTimeout(resize, 100);
+        requestAnimationFrame(loop);
+
+    </script>
+</body>
+</html>

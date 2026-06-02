@@ -1,2 +1,549 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: idle-clicker</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>idle-clicker - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Factory: Idle Clicker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap');
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #050510;
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(180deg, rgba(0, 243, 255, 0.1) 0%, transparent 100%);
+            border-bottom: 1px solid #00f3ff;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            color: #00f3ff;
+            text-shadow: 0 0 10px #00f3ff;
+            letter-spacing: 2px;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            #main-container { flex-direction: column; }
+        }
+
+        /* --- LEFT PANEL: THE CORE --- */
+        #core-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: radial-gradient(circle at center, #111 0%, #000 100%);
+            border-right: 1px solid #333;
+        }
+        
+        @media (max-width: 768px) {
+            #core-panel { flex: 0.5; border-right: none; border-bottom: 1px solid #333; }
+        }
+
+        #energy-display {
+            font-size: 48px;
+            font-weight: 700;
+            color: #39ff14;
+            text-shadow: 0 0 20px #39ff14;
+            margin-bottom: 10px;
+            z-index: 5;
+        }
+
+        #eps-display {
+            font-size: 18px;
+            color: #aaa;
+            margin-bottom: 40px;
+            z-index: 5;
+        }
+
+        #core-button {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #bd00ff, #4b0082);
+            border: 4px solid #00f3ff;
+            box-shadow: 0 0 50px #bd00ff, inset 0 0 30px #00f3ff;
+            cursor: pointer;
+            transition: transform 0.1s;
+            z-index: 5;
+        }
+
+        #core-button:active {
+            transform: scale(0.95);
+            box-shadow: 0 0 30px #bd00ff, inset 0 0 50px #00f3ff;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* --- RIGHT PANEL: STORE --- */
+        #store-panel {
+            flex: 1;
+            max-width: 500px;
+            background: #0a0a1a;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 768px) {
+            #store-panel { max-width: 100%; flex: 1; }
+        }
+
+        .store-header {
+            padding: 15px;
+            text-align: center;
+            background: #111;
+            border-bottom: 1px solid #333;
+            font-size: 20px;
+            font-weight: bold;
+            color: #ff00ff;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .store-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #222;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .store-item:hover {
+            background: rgba(255, 0, 255, 0.1);
+        }
+
+        .store-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        .item-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .item-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .item-desc {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .item-cost {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff3333;
+            text-shadow: 0 0 5px #ff3333;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        
+        .item-count {
+            font-size: 24px;
+            color: #444;
+            font-weight: bold;
+            margin-left: 20px;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        /* Upgrades section */
+        .upgrade-section {
+            padding: 10px 20px;
+            background: #151525;
+            border-bottom: 1px solid #333;
+            color: #00f3ff;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+
+        /* Floating text animation */
+        .floating-text {
+            position: absolute;
+            color: #fff;
+            font-weight: bold;
+            font-size: 24px;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 20;
+            text-shadow: 0 0 5px #00f3ff;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-50px) scale(1.5); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #050510; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>NEON FACTORY</h1>
+    </header>
+
+    <div id="main-container">
+        
+        <div id="core-panel">
+            <canvas id="particleCanvas"></canvas>
+            <div id="energy-display">0 ENERGY</div>
+            <div id="eps-display">0 Energy / sec</div>
+            <div id="core-button"></div>
+        </div>
+
+        <div id="store-panel">
+            <div class="store-header">UPGRADES & AUTOMATION</div>
+            <div id="store-list">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        let state = {
+            energy: 0,
+            clickPower: 1,
+            eps: 0, // Energy Per Second
+            buildings: [
+                { id: 'b1', name: 'Auto-Clicker', desc: 'Clicks automatically.', baseCost: 15, costMult: 1.15, count: 0, eps: 0.1 },
+                { id: 'b2', name: 'Neon Node', desc: 'A basic energy generator.', baseCost: 100, costMult: 1.15, count: 0, eps: 1 },
+                { id: 'b3', name: 'Energy Pylon', desc: 'Draws power from the grid.', baseCost: 1100, costMult: 1.15, count: 0, eps: 8 },
+                { id: 'b4', name: 'Plasma Reactor', desc: 'High-yield fusion tech.', baseCost: 12000, costMult: 1.15, count: 0, eps: 47 },
+                { id: 'b5', name: 'Dark Matter Forge', desc: 'Harnesses the void.', baseCost: 130000, costMult: 1.15, count: 0, eps: 260 },
+                { id: 'b6', name: 'Quantum Core', desc: 'Unlimited potential.', baseCost: 1000000, costMult: 1.15, count: 0, eps: 1400 }
+            ],
+            upgrades: [
+                { id: 'u1', name: 'Reinforced Mouse', desc: '+1 Click Power', cost: 50, purchased: false, effect: () => { state.clickPower += 1; } },
+                { id: 'u2', name: 'Cybernetic Fingers', desc: 'Click Power x2', cost: 500, purchased: false, effect: () => { state.clickPower *= 2; } },
+                { id: 'u3', name: 'Neural Link', desc: 'Click Power x5', cost: 10000, purchased: false, effect: () => { state.clickPower *= 5; } }
+            ]
+        };
+
+        // Load Save
+        if (localStorage.getItem('neonFactorySave')) {
+            let saved = JSON.parse(localStorage.getItem('neonFactorySave'));
+            // Merge backwards compatibility
+            state.energy = saved.energy || 0;
+            state.clickPower = saved.clickPower || 1;
+            if(saved.buildings) {
+                saved.buildings.forEach(b => {
+                    let target = state.buildings.find(tb => tb.id === b.id);
+                    if(target) target.count = b.count;
+                });
+            }
+            if(saved.upgrades) {
+                saved.upgrades.forEach(u => {
+                    let target = state.upgrades.find(tu => tu.id === u.id);
+                    if(target) target.purchased = u.purchased;
+                });
+            }
+            calculateEPS();
+        }
+
+        // --- DOM ELEMENTS ---
+        const energyEl = document.getElementById('energy-display');
+        const epsEl = document.getElementById('eps-display');
+        const coreBtn = document.getElementById('core-button');
+        const storeList = document.getElementById('store-list');
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- RENDER STORE ---
+        function renderStore() {
+            storeList.innerHTML = '';
+            
+            // Upgrades (Only show unpurchased)
+            let hasUpgrades = state.upgrades.some(u => !u.purchased);
+            if (hasUpgrades) {
+                let upgTitle = document.createElement('div');
+                upgTitle.className = 'upgrade-section';
+                upgTitle.innerText = 'One-Time Upgrades';
+                storeList.appendChild(upgTitle);
+
+                state.upgrades.forEach(u => {
+                    if (u.purchased) return;
+                    let div = document.createElement('div');
+                    div.className = `store-item ${state.energy < u.cost ? 'disabled' : ''}`;
+                    div.id = `ui-${u.id}`;
+                    div.innerHTML = `
+                        <div class="item-info">
+                            <div class="item-name" style="color:#00f3ff">${u.name}</div>
+                            <div class="item-desc">${u.desc}</div>
+                        </div>
+                        <div class="item-cost">
+                            ${Math.floor(u.cost).toLocaleString()} E
+                        </div>
+                    `;
+                    div.onclick = () => buyUpgrade(u.id);
+                    storeList.appendChild(div);
+                });
+            }
+
+            // Buildings
+            let bldTitle = document.createElement('div');
+            bldTitle.className = 'upgrade-section';
+            bldTitle.innerText = 'Buildings';
+            storeList.appendChild(bldTitle);
+
+            state.buildings.forEach(b => {
+                let cost = getBuildingCost(b);
+                let div = document.createElement('div');
+                div.className = `store-item ${state.energy < cost ? 'disabled' : ''}`;
+                div.id = `ui-${b.id}`;
+                div.innerHTML = `
+                    <div class="item-info">
+                        <div class="item-name">${b.name}</div>
+                        <div class="item-desc">+${b.eps} E/sec</div>
+                    </div>
+                    <div style="display:flex; align-items:center;">
+                        <div class="item-cost" id="cost-${b.id}">
+                            ${Math.floor(cost).toLocaleString()} E
+                        </div>
+                        <div class="item-count">${b.count}</div>
+                    </div>
+                `;
+                div.onclick = () => buyBuilding(b.id);
+                storeList.appendChild(div);
+            });
+        }
+
+        function updateStoreUI() {
+            // Efficiently update button states without full re-render
+            state.upgrades.forEach(u => {
+                if(u.purchased) return;
+                let el = document.getElementById(`ui-${u.id}`);
+                if(el) {
+                    if(state.energy >= u.cost) el.classList.remove('disabled');
+                    else el.classList.add('disabled');
+                }
+            });
+
+            state.buildings.forEach(b => {
+                let cost = getBuildingCost(b);
+                let el = document.getElementById(`ui-${b.id}`);
+                if(el) {
+                    if(state.energy >= cost) el.classList.remove('disabled');
+                    else el.classList.add('disabled');
+                    // update cost text if needed
+                    document.getElementById(`cost-${b.id}`).innerText = Math.floor(cost).toLocaleString() + ' E';
+                }
+            });
+        }
+
+        // --- LOGIC ---
+        function getBuildingCost(b) {
+            return b.baseCost * Math.pow(b.costMult, b.count);
+        }
+
+        function calculateEPS() {
+            let total = 0;
+            state.buildings.forEach(b => {
+                total += b.count * b.eps;
+            });
+            state.eps = total;
+            epsEl.innerText = `${state.eps.toFixed(1)} Energy / sec`;
+        }
+
+        function buyBuilding(id) {
+            let b = state.buildings.find(x => x.id === id);
+            let cost = getBuildingCost(b);
+            if (state.energy >= cost) {
+                state.energy -= cost;
+                b.count++;
+                calculateEPS();
+                renderStore(); // Re-render to update counts
+            }
+        }
+
+        function buyUpgrade(id) {
+            let u = state.upgrades.find(x => x.id === id);
+            if (state.energy >= u.cost && !u.purchased) {
+                state.energy -= u.cost;
+                u.purchased = true;
+                u.effect();
+                renderStore();
+            }
+        }
+
+        // --- INTERACTION ---
+        coreBtn.addEventListener('mousedown', handleClick);
+        coreBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            // Handle multi-touch tapping
+            for(let i=0; i<e.changedTouches.length; i++){
+                handleClick(e.changedTouches[i]);
+            }
+        }, {passive: false});
+
+        function handleClick(e) {
+            state.energy += state.clickPower;
+            spawnFloatingText(`+${state.clickPower}`, e.clientX, e.clientY);
+            spawnParticles(e.clientX, e.clientY);
+            updateUI();
+        }
+
+        function spawnFloatingText(text, x, y) {
+            let el = document.createElement('div');
+            el.className = 'floating-text';
+            el.innerText = text;
+            
+            // Adjust position slightly to be near cursor but random
+            let offsetX = (Math.random() - 0.5) * 40;
+            let offsetY = (Math.random() - 0.5) * 20 - 20;
+            
+            // If coordinates not provided (e.g. keyboard trigger), center it
+            if(!x || !y) {
+                let rect = coreBtn.getBoundingClientRect();
+                x = rect.left + rect.width/2;
+                y = rect.top + rect.height/2;
+            }
+
+            el.style.left = (x + offsetX) + 'px';
+            el.style.top = (y + offsetY) + 'px';
+            document.body.appendChild(el);
+
+            setTimeout(() => {
+                el.remove();
+            }, 1000);
+        }
+
+        function updateUI() {
+            energyEl.innerText = `${Math.floor(state.energy).toLocaleString()} ENERGY`;
+            updateStoreUI();
+        }
+
+        // --- PARTICLES ---
+        let particles = [];
+        
+        function resize() {
+            canvas.width = document.getElementById('core-panel').clientWidth;
+            canvas.height = document.getElementById('core-panel').clientHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function spawnParticles(x, y) {
+            // Convert page coords to local canvas coords
+            let rect = canvas.getBoundingClientRect();
+            let lx = x ? (x - rect.left) : (canvas.width/2);
+            let ly = y ? (y - rect.top) : (canvas.height/2);
+
+            for(let i=0; i<8; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 5 + 2;
+                particles.push({
+                    x: lx,
+                    y: ly,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1,
+                    color: Math.random() > 0.5 ? '#00f3ff' : '#bd00ff',
+                    size: Math.random() * 4 + 2
+                });
+            }
+        }
+
+        // --- MAIN LOOP ---
+        let lastTime = performance.now();
+        let saveTimer = 0;
+
+        function loop(time) {
+            let dt = (time - lastTime) / 1000;
+            lastTime = time;
+
+            // Generate Energy
+            if (state.eps > 0) {
+                state.energy += state.eps * dt;
+                updateUI();
+            }
+
+            // Draw Particles
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for(let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1; // gravity
+                p.life -= 0.02;
+                
+                if(p.life <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+            }
+
+            // Auto Save every 5 seconds
+            saveTimer += dt;
+            if (saveTimer > 5) {
+                localStorage.setItem('neonFactorySave', JSON.stringify(state));
+                saveTimer = 0;
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // Init
+        renderStore();
+        calculateEPS();
+        updateUI();
+        requestAnimationFrame(loop);
+
+        // Debug cheat
+        window.cheat = () => { state.energy += 100000; updateUI(); }
+
+    </script>
+</body>
+</html>

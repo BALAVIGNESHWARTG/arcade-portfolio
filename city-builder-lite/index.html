@@ -1,2 +1,429 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: city-builder-lite</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>city-builder-lite - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Micro Grid Mayor</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #2b3a42;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            padding: 15px;
+            background: #1a252c;
+            border-bottom: 4px solid #3f5765;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .stat { color: #f1c40f; text-shadow: 2px 2px #000; }
+        .stat span { color: #fff; }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            #main-container { flex-direction: column-reverse; }
+        }
+
+        #toolbar {
+            width: 200px;
+            background: #3f5765;
+            border-right: 4px solid #1a252c;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 768px) {
+            #toolbar { width: 100%; height: 120px; flex-direction: row; flex-wrap: wrap; border-right: none; border-top: 4px solid #1a252c; padding: 10px; gap: 5px; justify-content: center; }
+        }
+
+        .tool-btn {
+            background: #2b3a42;
+            border: 2px solid #1a252c;
+            color: #fff;
+            font-family: inherit;
+            font-size: 10px;
+            padding: 15px 10px;
+            cursor: pointer;
+            transition: 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 2px 2px 0 #1a252c;
+        }
+
+        @media (max-width: 768px) {
+            .tool-btn { padding: 5px; flex: 1; min-width: 60px; font-size: 8px; }
+        }
+
+        .tool-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #1a252c;
+        }
+
+        .tool-btn.active {
+            background: #fff;
+            color: #000;
+            border-color: #f1c40f;
+        }
+
+        .color-box { width: 20px; height: 20px; border: 1px solid #000; }
+        .color-res { background: #2ecc71; }
+        .color-com { background: #3498db; }
+        .color-ind { background: #f1c40f; }
+        .color-road { background: #7f8c8d; }
+        .color-bull { background: #e74c3c; }
+
+        #map-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #27ae60;
+            background-image: 
+                linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            position: relative;
+        }
+
+        canvas {
+            background: transparent;
+            cursor: pointer;
+            box-shadow: 10px 10px 0 rgba(0,0,0,0.2);
+            image-rendering: pixelated;
+        }
+
+        .toast {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 10px 20px;
+            border: 2px solid #fff;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 100;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="stat">FUNDS: $<span id="funds">5000</span></div>
+        <div class="stat">POP: <span id="pop">0</span></div>
+        <div class="stat">MONTH: <span id="month">1</span></div>
+    </header>
+
+    <div class="toast" id="toast">Not enough funds!</div>
+
+    <div id="main-container">
+        <div id="toolbar">
+            <button class="tool-btn active" data-tool="road" data-cost="10">
+                <div class="color-box color-road"></div>
+                ROAD<br>($10)
+            </button>
+            <button class="tool-btn" data-tool="res" data-cost="50">
+                <div class="color-box color-res"></div>
+                RESIDENTIAL<br>($50)
+            </button>
+            <button class="tool-btn" data-tool="com" data-cost="50">
+                <div class="color-box color-com"></div>
+                COMMERCIAL<br>($50)
+            </button>
+            <button class="tool-btn" data-tool="ind" data-cost="50">
+                <div class="color-box color-ind"></div>
+                INDUSTRIAL<br>($50)
+            </button>
+            <button class="tool-btn" data-tool="bull" data-cost="5">
+                <div class="color-box color-bull"></div>
+                BULLDOZE<br>($5)
+            </button>
+            <div style="flex-grow:1;"></div>
+            <div style="font-size:8px; line-height: 1.5; color:#ccc; text-align:center;">
+                Zones need roads to develop.<br><br>R needs C/I.<br>C needs R/I.<br>I needs R.
+            </div>
+        </div>
+
+        <div id="map-container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const fundsEl = document.getElementById('funds');
+        const popEl = document.getElementById('pop');
+        const monthEl = document.getElementById('month');
+        const toastEl = document.getElementById('toast');
+
+        // Constants
+        const TILE_SIZE = 20;
+        const GRID_W = 25;
+        const GRID_H = 25;
+        
+        canvas.width = GRID_W * TILE_SIZE;
+        canvas.height = GRID_H * TILE_SIZE;
+
+        // Tool Config
+        const TOOLS = {
+            'road': { type: 1, cost: 10 },
+            'res': { type: 2, cost: 50 },
+            'com': { type: 3, cost: 50 },
+            'ind': { type: 4, cost: 50 },
+            'bull': { type: 0, cost: 5 }
+        };
+
+        // Game State
+        let map = []; // Array of objects { type: 0, dev: 0 } (type: 0=empty, 1=road, 2=res, 3=com, 4=ind)
+        let funds = 5000;
+        let population = 0;
+        let month = 1;
+        let currentTool = 'road';
+        let isDragging = false;
+        let lastTile = null;
+
+        function initMap() {
+            for(let i=0; i<GRID_W * GRID_H; i++) {
+                map[i] = { type: 0, dev: 0 }; // dev goes from 0 to 3
+            }
+        }
+        initMap();
+
+        // UI Toolbar
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTool = btn.dataset.tool;
+            });
+        });
+
+        function showToast(msg) {
+            toastEl.innerText = msg;
+            toastEl.style.opacity = 1;
+            setTimeout(() => toastEl.style.opacity = 0, 2000);
+        }
+
+        // Interaction
+        function getTilePos(e) {
+            let rect = canvas.getBoundingClientRect();
+            let scaleX = canvas.width / rect.width;
+            let scaleY = canvas.height / rect.height;
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            let tx = Math.floor((clientX - rect.left) * scaleX / TILE_SIZE);
+            let ty = Math.floor((clientY - rect.top) * scaleY / TILE_SIZE);
+            return {tx, ty};
+        }
+
+        function buildTile(tx, ty) {
+            if(tx < 0 || tx >= GRID_W || ty < 0 || ty >= GRID_H) return;
+            let idx = ty * GRID_W + tx;
+            let tool = TOOLS[currentTool];
+            
+            // Prevent duplicate build
+            if (map[idx].type === tool.type) return;
+            if (currentTool !== 'bull' && map[idx].type !== 0) return; // Only bulldoze can clear, others build on empty
+
+            if (funds >= tool.cost) {
+                funds -= tool.cost;
+                fundsEl.innerText = funds;
+                map[idx].type = tool.type;
+                map[idx].dev = 0;
+                drawMap();
+            } else {
+                showToast("NOT ENOUGH FUNDS!");
+                isDragging = false;
+            }
+        }
+
+        function handleStart(e) {
+            isDragging = true;
+            let p = getTilePos(e);
+            lastTile = `${p.tx},${p.ty}`;
+            buildTile(p.tx, p.ty);
+        }
+
+        function handleMove(e) {
+            if(!isDragging) return;
+            let p = getTilePos(e);
+            let key = `${p.tx},${p.ty}`;
+            if(key !== lastTile) {
+                lastTile = key;
+                buildTile(p.tx, p.ty);
+            }
+        }
+
+        canvas.addEventListener('mousedown', handleStart);
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        canvas.addEventListener('touchstart', (e)=>{e.preventDefault(); handleStart(e);}, {passive:false});
+        window.addEventListener('touchmove', (e)=>{if(isDragging){e.preventDefault(); handleMove(e);}}, {passive:false});
+        window.addEventListener('touchend', () => isDragging = false);
+
+        // Simulation
+        function hasRoadAccess(tx, ty) {
+            // Check adjacent 4 tiles
+            let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+            for(let d of dirs) {
+                let nx = tx + d[0]; let ny = ty + d[1];
+                if(nx>=0 && nx<GRID_W && ny>=0 && ny<GRID_H) {
+                    if(map[ny*GRID_W + nx].type === 1) return true;
+                }
+            }
+            return false;
+        }
+
+        function countTypeDist(tx, ty, type, maxDist) {
+            let count = 0;
+            for(let dy = -maxDist; dy <= maxDist; dy++) {
+                for(let dx = -maxDist; dx <= maxDist; dx++) {
+                    let nx = tx + dx; let ny = ty + dy;
+                    if(nx>=0 && nx<GRID_W && ny>=0 && ny<GRID_H) {
+                        if(map[ny*GRID_W + nx].type === type) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function simulateMonth() {
+            month++;
+            monthEl.innerText = month;
+            let newPop = 0;
+            let taxRevenue = 0;
+
+            for(let y=0; y<GRID_H; y++) {
+                for(let x=0; x<GRID_W; x++) {
+                    let idx = y*GRID_W + x;
+                    let tile = map[idx];
+                    
+                    if(tile.type === 0 || tile.type === 1) continue; // Empty or road
+
+                    if(!hasRoadAccess(x, y)) {
+                        // Decay if no road
+                        if(Math.random() < 0.2 && tile.dev > 0) tile.dev--;
+                        continue;
+                    }
+
+                    // Try to develop
+                    if(tile.type === 2) { // Res
+                        let jobs = countTypeDist(x, y, 3, 5) + countTypeDist(x, y, 4, 5); // Com + Ind nearby
+                        if(jobs > tile.dev * 2 && Math.random() < 0.3 && tile.dev < 3) tile.dev++;
+                        newPop += tile.dev * 10;
+                        taxRevenue += tile.dev * 2;
+                    } 
+                    else if(tile.type === 3) { // Com
+                        let customers = countTypeDist(x, y, 2, 4);
+                        if(customers > tile.dev * 3 && Math.random() < 0.3 && tile.dev < 3) tile.dev++;
+                        taxRevenue += tile.dev * 5;
+                    }
+                    else if(tile.type === 4) { // Ind
+                        let workers = countTypeDist(x, y, 2, 6);
+                        if(workers > tile.dev * 2 && Math.random() < 0.3 && tile.dev < 3) tile.dev++;
+                        taxRevenue += tile.dev * 8;
+                    }
+                }
+            }
+
+            // Upkeep for roads
+            let roadCount = map.filter(t => t.type === 1).length;
+            let expenses = roadCount * 1;
+            
+            funds += (taxRevenue - expenses);
+            population = newPop;
+            
+            fundsEl.innerText = funds;
+            popEl.innerText = population;
+            
+            if(funds < 0) showToast("MAYOR, WE ARE IN DEBT!");
+
+            drawMap();
+        }
+
+        // Draw
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for(let y=0; y<GRID_H; y++) {
+                for(let x=0; x<GRID_W; x++) {
+                    let idx = y*GRID_W + x;
+                    let t = map[idx];
+                    
+                    let px = x * TILE_SIZE;
+                    let py = y * TILE_SIZE;
+
+                    if(t.type === 0) continue; // transparent (shows bg)
+
+                    if(t.type === 1) { // Road
+                        ctx.fillStyle = '#7f8c8d';
+                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                        // Draw dashed line center
+                        ctx.fillStyle = '#bdc3c7';
+                        ctx.fillRect(px + TILE_SIZE/2 - 1, py + TILE_SIZE/2 - 1, 2, 2);
+                    } 
+                    else {
+                        // Zone Base Color
+                        if(t.type === 2) ctx.fillStyle = '#2ecc71';
+                        else if(t.type === 3) ctx.fillStyle = '#3498db';
+                        else if(t.type === 4) ctx.fillStyle = '#f1c40f';
+                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+                        // Outline
+                        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                        ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+
+                        // Draw Development
+                        if (t.dev > 0) {
+                            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                            let size = t.dev * 4; // 4, 8, 12
+                            ctx.fillRect(px + (TILE_SIZE-size)/2, py + (TILE_SIZE-size)/2, size, size);
+                            // Draw shadow
+                            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                            ctx.fillRect(px + (TILE_SIZE-size)/2 + size, py + (TILE_SIZE-size)/2, 2, size);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sim Loop
+        setInterval(simulateMonth, 2000); // 1 month = 2 seconds
+        
+        // Initial render
+        drawMap();
+
+    </script>
+</body>
+</html>

@@ -1,2 +1,533 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: economy-simulator</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>economy-simulator - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Stock Market</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #020205;
+            color: #0f0;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        /* CRT Effects */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: #050510;
+            border-bottom: 2px solid #0f0;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #0f0;
+            letter-spacing: 2px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            font-size: 18px;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 5px #fff;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        @media (max-width: 800px) {
+            #main-container { flex-direction: column; overflow-y: auto; }
+            .stats { flex-direction: column; gap: 5px; text-align: right; }
+        }
+
+        /* Chart Area */
+        #chart-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #0f0;
+            background: rgba(0, 255, 0, 0.02);
+            position: relative;
+        }
+
+        .panel-title {
+            padding: 10px;
+            border-bottom: 1px solid #0f0;
+            background: rgba(0, 255, 0, 0.1);
+            font-size: 18px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        canvas {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* News Ticker */
+        #news-ticker {
+            padding: 10px;
+            border-top: 1px solid #0f0;
+            font-size: 14px;
+            color: #ff0;
+            white-space: nowrap;
+            overflow: hidden;
+            background: #000;
+        }
+        .ticker-text {
+            display: inline-block;
+            padding-left: 100%;
+            animation: ticker 15s linear infinite;
+        }
+        @keyframes ticker {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-100%, 0); }
+        }
+
+        /* Trade Panel */
+        #trade-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #0f0;
+            background: rgba(0, 255, 0, 0.02);
+            overflow-y: auto;
+            min-width: 300px;
+        }
+
+        .stock-item {
+            padding: 15px;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .stock-item.active {
+            background: rgba(0, 255, 0, 0.1);
+            border-left: 4px solid #0f0;
+        }
+
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .stock-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .stock-price {
+            font-size: 20px;
+        }
+
+        .price-up { color: #0f0; }
+        .price-down { color: #f00; }
+
+        .stock-shares {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .trade-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            flex: 1;
+            background: transparent;
+            border: 1px solid #0f0;
+            color: #0f0;
+            font-family: 'Share Tech Mono', monospace;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #0f0;
+            color: #000;
+        }
+
+        button:disabled {
+            border-color: #333;
+            color: #333;
+            cursor: not-allowed;
+        }
+
+        button.btn-sell {
+            border-color: #f00;
+            color: #f00;
+        }
+        button.btn-sell:hover:not(:disabled) {
+            background: #f00;
+            color: #000;
+        }
+
+        /* Next Day Button */
+        #next-day-btn {
+            margin: 20px;
+            padding: 15px;
+            font-size: 20px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 2px solid #0f0;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            display: none;
+        }
+
+        .game-over h1 {
+            color: #0f0;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .game-over p {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 30px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="title">CYBER_MARKET_OS_v1.0</div>
+        <div class="stats">
+            <div>DAY: <span id="day-val" class="stat-value">1/30</span></div>
+            <div>CASH: $<span id="cash-val" class="stat-value">1000.00</span></div>
+            <div>PORTFOLIO: $<span id="port-val" class="stat-value">0.00</span></div>
+            <div>NET WORTH: $<span id="net-val" class="stat-value">1000.00</span></div>
+        </div>
+    </header>
+
+    <div id="main-container">
+        
+        <div id="trade-panel">
+            <div class="panel-title">MARKET LISTINGS</div>
+            <div id="stock-list">
+                <!-- Rendered by JS -->
+            </div>
+            <div style="flex-grow:1;"></div>
+            <button id="next-day-btn">ADVANCE DAY >></button>
+        </div>
+
+        <div id="chart-panel">
+            <div class="panel-title">
+                <span id="chart-title">SELECT A STOCK</span>
+                <span id="chart-price"></span>
+            </div>
+            <canvas id="chart-canvas"></canvas>
+            <div id="news-ticker">
+                <span class="ticker-text" id="ticker-content">SYSTEM INITIALIZED. AWAITING MARKET OPEN.</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="game-over" id="game-over">
+        <h1>TRADING PERIOD ENDED</h1>
+        <p>FINAL NET WORTH: $<span id="final-net"></span></p>
+        <p>PROFIT/LOSS: <span id="final-profit"></span></p>
+        <button onclick="location.reload()" style="width: 200px;">REBOOT SYSTEM</button>
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        const MAX_DAYS = 30;
+        let day = 1;
+        let cash = 1000.00;
+        let activeStockId = 0;
+
+        const stocks = [
+            { id: 0, sym: 'NXC', name: 'NeuroX Corp', price: 100, volatility: 0.05, trend: 0.01, shares: 0, history: [100] },
+            { id: 1, sym: 'SYN', name: 'Synthetix Dynamics', price: 45, volatility: 0.08, trend: 0.0, shares: 0, history: [45] },
+            { id: 2, sym: 'QTM', name: 'Quantum Logistics', price: 250, volatility: 0.02, trend: 0.005, shares: 0, history: [250] },
+            { id: 3, sym: 'VRT', name: 'VirtuSpace VR', price: 15, volatility: 0.15, trend: -0.01, shares: 0, history: [15] }
+        ];
+
+        const newsEvents = [
+            { text: "NXC announces breakthrough in neural linking tech.", effect: { id: 0, mult: 1.3 } },
+            { text: "Scandal at SYN! CEO steps down amid allegations.", effect: { id: 1, mult: 0.7 } },
+            { text: "Global supply chain crisis hurts QTM margins.", effect: { id: 2, mult: 0.85 } },
+            { text: "VRT viral game launch causes massive hype!", effect: { id: 3, mult: 1.5 } },
+            { text: "Market analysts predict a slow quarter for tech sector.", effect: { id: -1, mult: 0.95 } }, // all
+            { text: "Government subsidizes quantum research, QTM benefits.", effect: { id: 2, mult: 1.2 } },
+            { text: "Synthetix Dynamics (SYN) wins major military contract.", effect: { id: 1, mult: 1.4 } }
+        ];
+
+        // --- DOM ---
+        const stockListEl = document.getElementById('stock-list');
+        const dayEl = document.getElementById('day-val');
+        const cashEl = document.getElementById('cash-val');
+        const portEl = document.getElementById('port-val');
+        const netEl = document.getElementById('net-val');
+        const tickerEl = document.getElementById('ticker-content');
+        
+        const canvas = document.getElementById('chart-canvas');
+        const ctx = canvas.getContext('2d');
+        const chartTitle = document.getElementById('chart-title');
+        const chartPrice = document.getElementById('chart-price');
+
+        // --- INIT & RENDER ---
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            // Leave room for title and ticker
+            canvas.height = canvas.parentElement.clientHeight - 80;
+            drawChart();
+        }
+        window.addEventListener('resize', resize);
+
+        function renderStockList() {
+            stockListEl.innerHTML = '';
+            stocks.forEach(s => {
+                let diff = 0;
+                if(s.history.length > 1) {
+                    diff = s.price - s.history[s.history.length-2];
+                }
+                let colorClass = diff >= 0 ? 'price-up' : 'price-down';
+                let sign = diff >= 0 ? '+' : '';
+
+                let div = document.createElement('div');
+                div.className = `stock-item ${s.id === activeStockId ? 'active' : ''}`;
+                div.onclick = () => { activeStockId = s.id; renderStockList(); drawChart(); };
+                
+                div.innerHTML = `
+                    <div class="stock-header">
+                        <span class="stock-name">[${s.sym}] ${s.name}</span>
+                        <span class="stock-price ${colorClass}">$${s.price.toFixed(2)}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="stock-shares">Owned: ${s.shares}</span>
+                        <span class="stock-shares ${colorClass}">${sign}${diff.toFixed(2)}</span>
+                    </div>
+                    ${s.id === activeStockId ? `
+                        <div class="trade-controls" onclick="event.stopPropagation()">
+                            <button onclick="trade(${s.id}, 1)" ${cash < s.price ? 'disabled' : ''}>BUY 1</button>
+                            <button onclick="trade(${s.id}, Math.floor(cash/s.price))" ${cash < s.price ? 'disabled' : ''}>BUY MAX</button>
+                            <button class="btn-sell" onclick="trade(${s.id}, -1)" ${s.shares < 1 ? 'disabled' : ''}>SELL 1</button>
+                            <button class="btn-sell" onclick="trade(${s.id}, -s.shares)" ${s.shares < 1 ? 'disabled' : ''}>SELL ALL</button>
+                        </div>
+                    ` : ''}
+                `;
+                stockListEl.appendChild(div);
+            });
+
+            updateHeader();
+        }
+
+        function updateHeader() {
+            let portValue = 0;
+            stocks.forEach(s => portValue += s.shares * s.price);
+            
+            dayEl.innerText = `${day}/${MAX_DAYS}`;
+            cashEl.innerText = cash.toFixed(2);
+            portEl.innerText = portValue.toFixed(2);
+            netEl.innerText = (cash + portValue).toFixed(2);
+        }
+
+        function trade(id, qty) {
+            let s = stocks.find(x => x.id === id);
+            if(qty > 0) { // Buy
+                let cost = s.price * qty;
+                if(cash >= cost) {
+                    cash -= cost;
+                    s.shares += qty;
+                }
+            } else { // Sell
+                qty = Math.abs(qty);
+                if(s.shares >= qty) {
+                    let revenue = s.price * qty;
+                    cash += revenue;
+                    s.shares -= qty;
+                }
+            }
+            renderStockList();
+        }
+
+        // --- CHARTING ---
+        function drawChart() {
+            if(!ctx) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            let s = stocks.find(x => x.id === activeStockId);
+            if(!s) return;
+
+            chartTitle.innerText = `${s.name} (${s.sym})`;
+            chartPrice.innerText = `$${s.price.toFixed(2)}`;
+            chartPrice.className = s.history.length > 1 && s.price >= s.history[s.history.length-2] ? 'price-up' : 'price-down';
+
+            let data = s.history;
+            if(data.length < 2) return;
+
+            // Find min/max for scaling
+            let min = Math.min(...data) * 0.9;
+            let max = Math.max(...data) * 1.1;
+            if(min === max) { min *= 0.5; max *= 1.5; } // fallback
+
+            let xStep = canvas.width / (MAX_DAYS - 1);
+            
+            // Draw grid lines
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 1;
+            for(let i=0; i<MAX_DAYS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i*xStep, 0);
+                ctx.lineTo(i*xStep, canvas.height);
+                ctx.stroke();
+            }
+
+            // Draw line
+            ctx.beginPath();
+            ctx.strokeStyle = '#0f0';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            
+            for(let i=0; i<data.length; i++) {
+                let x = i * xStep;
+                let y = canvas.height - ((data[i] - min) / (max - min)) * canvas.height;
+                if(i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Fill area
+            ctx.lineTo((data.length-1)*xStep, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+            ctx.fill();
+
+            // Draw points
+            for(let i=0; i<data.length; i++) {
+                let x = i * xStep;
+                let y = canvas.height - ((data[i] - min) / (max - min)) * canvas.height;
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI*2);
+                ctx.fillStyle = '#000';
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        // --- SIMULATION ---
+        function advanceDay() {
+            if(day >= MAX_DAYS) return;
+
+            day++;
+            
+            // Random News Event (20% chance)
+            let eventText = `Day ${day}: Normal market conditions.`;
+            let activeEvent = null;
+            if(Math.random() < 0.2) {
+                activeEvent = newsEvents[Math.floor(Math.random() * newsEvents.length)];
+                eventText = `>>> BREAKING: ${activeEvent.text}`;
+            }
+            
+            // Restart animation
+            tickerEl.style.animation = 'none';
+            tickerEl.offsetHeight; // trigger reflow
+            tickerEl.style.animation = null; 
+            tickerEl.innerText = eventText;
+
+            // Process Stocks
+            stocks.forEach(s => {
+                // Geometric Brownian Motion step
+                // S_t = S_{t-1} * exp( (mu - sigma^2/2) + sigma * Z )
+                // Simplified random walk:
+                let change = (Math.random() - 0.5) * 2 * s.volatility + s.trend;
+                s.price = s.price * (1 + change);
+
+                // Apply event effect
+                if(activeEvent && (activeEvent.id === s.id || activeEvent.id === -1)) {
+                    s.price *= activeEvent.mult;
+                }
+
+                if(s.price < 1) s.price = 1; // bankruptcy protection
+                s.history.push(s.price);
+            });
+
+            renderStockList();
+            drawChart();
+
+            if(day === MAX_DAYS) {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            let portValue = 0;
+            stocks.forEach(s => portValue += s.shares * s.price);
+            let finalNet = cash + portValue;
+            let profit = finalNet - 1000;
+
+            document.getElementById('final-net').innerText = finalNet.toFixed(2);
+            let pEl = document.getElementById('final-profit');
+            pEl.innerText = `${profit >= 0 ? '+' : '-'}$${Math.abs(profit).toFixed(2)}`;
+            pEl.style.color = profit >= 0 ? '#0f0' : '#f00';
+
+            document.getElementById('game-over').style.display = 'flex';
+        }
+
+        document.getElementById('next-day-btn').addEventListener('click', advanceDay);
+
+        // Run
+        setTimeout(resize, 100);
+        renderStockList();
+
+    </script>
+</body>
+</html>

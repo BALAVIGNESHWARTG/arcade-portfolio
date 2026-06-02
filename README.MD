@@ -234,13 +234,13 @@ Game state synchronization and turn logic.
 
 Simulation, economy, and autonomous systems.
 
-[ ] Idle Clicker
+[x] Idle Clicker (Completed)
 
-[ ] Economy Simulator
+[x] Economy Simulator (Completed)
 
-[ ] Evolution Game
+[x] Evolution Game (Completed)
 
-[ ] City Builder Lite
+[x] City Builder Lite (Completed)
 
 [ ] AI Training Game
 
@@ -250,7 +250,7 @@ Simulation, economy, and autonomous systems.
 
 [ ] Algorithm Visualizer
 
-[ ] Physics Sandbox
+[x] Physics Sandbox (Completed)
 
 [ ] Game Engine Demo
 

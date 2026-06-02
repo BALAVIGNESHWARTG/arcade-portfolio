@@ -1,2 +1,521 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: physics-sandbox</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>physics-sandbox - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Elemental Box: Physics Sandbox</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #111;
+            color: #eee;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            padding: 10px;
+            background: #222;
+            border-bottom: 2px solid #555;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Canvas Area */
+        #canvas-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #050505;
+            position: relative;
+        }
+
+        canvas {
+            background-color: #000;
+            image-rendering: pixelated; /* sharp pixels */
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            cursor: crosshair;
+        }
+
+        /* Toolbar */
+        #toolbar {
+            width: 250px;
+            background: #222;
+            border-left: 2px solid #444;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 768px) {
+            #main-container { flex-direction: column; }
+            #toolbar { width: 100%; border-left: none; border-top: 2px solid #444; flex-direction: row; flex-wrap: wrap; height: 150px; overflow-y: auto; }
+        }
+
+        .tool-group {
+            margin-bottom: 20px;
+        }
+
+        .tool-title {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .tool-group { margin-right: 20px; flex: 1; min-width: 150px; }
+            .btn-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        button {
+            background: #333;
+            border: 2px solid #444;
+            color: #fff;
+            padding: 10px 5px;
+            font-family: inherit;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: 0.2s;
+            font-weight: bold;
+        }
+
+        button:hover { background: #444; }
+
+        button.active {
+            border-color: #fff;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        /* Material Colors for buttons */
+        .mat-0 { border-left-color: #000; }  /* Eraser */
+        .mat-1 { border-left-color: #f4d03f; } /* Sand */
+        .mat-2 { border-left-color: #3498db; } /* Water */
+        .mat-3 { border-left-color: #95a5a6; } /* Stone */
+        .mat-4 { border-left-color: #8e44ad; } /* Acid */
+        .mat-5 { border-left-color: #e67e22; } /* Wood */
+        .mat-6 { border-left-color: #e74c3c; } /* Fire */
+
+        #clear-btn {
+            background: #c0392b;
+            color: #fff;
+            border: none;
+            padding: 10px;
+            margin-top: auto;
+            width: 100%;
+        }
+
+        #brush-size {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>ELEMENTAL BOX</div>
+        <div style="font-size: 12px; color: #888;">FPS: <span id="fps">60</span></div>
+    </header>
+
+    <div id="main-container">
+        
+        <div id="canvas-wrapper">
+            <canvas id="gameCanvas" width="200" height="200"></canvas>
+        </div>
+
+        <div id="toolbar">
+            <div class="tool-group">
+                <div class="tool-title">Elements</div>
+                <div class="btn-grid" id="material-btns">
+                    <!-- JS populated -->
+                </div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-title">Brush Size: <span id="size-val">3</span></div>
+                <input type="range" id="brush-size" min="1" max="15" value="3">
+            </div>
+
+            <button id="clear-btn">CLEAR CANVAS</button>
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Simulation Grid Size (Fixed resolution for performance)
+        const GRID_WIDTH = 200;
+        const GRID_HEIGHT = 200;
+        
+        // Element Types
+        const EMPTY = 0;
+        const SAND = 1;
+        const WATER = 2;
+        const STONE = 3;
+        const ACID = 4;
+        const WOOD = 5;
+        const FIRE = 6;
+
+        const MATERIALS = [
+            { id: EMPTY, name: 'Eraser', color: [0, 0, 0, 0] },
+            { id: SAND, name: 'Sand', color: [244, 208, 63, 255] },
+            { id: WATER, name: 'Water', color: [52, 152, 219, 200] },
+            { id: STONE, name: 'Stone', color: [149, 165, 166, 255] },
+            { id: ACID, name: 'Acid', color: [142, 68, 173, 200] },
+            { id: WOOD, name: 'Wood', color: [142, 107, 72, 255] },
+            { id: FIRE, name: 'Fire', color: [231, 76, 60, 255] }
+        ];
+
+        let currentMaterial = SAND;
+        let brushSize = 3;
+        let isDrawing = false;
+        let lastPos = null;
+
+        // Grid buffers
+        // Use Uint8Array for fast operations
+        let grid = new Uint8Array(GRID_WIDTH * GRID_HEIGHT);
+        // Track states like fire life, etc.
+        let stateData = new Uint8Array(GRID_WIDTH * GRID_HEIGHT);
+
+        // ImageData for rendering
+        let imgData = ctx.createImageData(GRID_WIDTH, GRID_HEIGHT);
+
+        // --- UI Setup ---
+        const btnContainer = document.getElementById('material-btns');
+        MATERIALS.forEach(m => {
+            let btn = document.createElement('button');
+            btn.className = `mat-${m.id}`;
+            btn.innerText = m.name;
+            if(m.id === currentMaterial) btn.classList.add('active');
+            btn.onclick = () => {
+                document.querySelectorAll('.btn-grid button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMaterial = m.id;
+            };
+            btnContainer.appendChild(btn);
+        });
+
+        document.getElementById('brush-size').addEventListener('input', (e) => {
+            brushSize = parseInt(e.target.value);
+            document.getElementById('size-val').innerText = brushSize;
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            grid.fill(EMPTY);
+            stateData.fill(0);
+        });
+
+        // --- Canvas Scaling ---
+        function resizeCanvas() {
+            let wrapper = document.getElementById('canvas-wrapper');
+            let size = Math.min(wrapper.clientWidth, wrapper.clientHeight) - 40;
+            canvas.style.width = size + 'px';
+            canvas.style.height = size + 'px';
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- Interaction ---
+        function getGridPos(e) {
+            let rect = canvas.getBoundingClientRect();
+            // handle touch
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            let scaleX = canvas.width / rect.width;
+            let scaleY = canvas.height / rect.height;
+            
+            let x = Math.floor((clientX - rect.left) * scaleX);
+            let y = Math.floor((clientY - rect.top) * scaleY);
+            return {x, y};
+        }
+
+        function drawBrush(gx, gy) {
+            let half = Math.floor(brushSize / 2);
+            for(let y = -half; y <= half; y++) {
+                for(let x = -half; x <= half; x++) {
+                    // circle brush
+                    if(x*x + y*y <= half*half) {
+                        let nx = gx + x;
+                        let ny = gy + y;
+                        if(nx >= 0 && nx < GRID_WIDTH && ny >= 0 && ny < GRID_HEIGHT) {
+                            let idx = ny * GRID_WIDTH + nx;
+                            // Add randomness so brushes aren't solid blocks, except for eraser/stone
+                            if(currentMaterial === EMPTY || currentMaterial === STONE || currentMaterial === WOOD) {
+                                grid[idx] = currentMaterial;
+                                if(currentMaterial === WOOD) stateData[idx] = 100; // flammability
+                            } else if (Math.random() < 0.3) {
+                                grid[idx] = currentMaterial;
+                                if(currentMaterial === FIRE) stateData[idx] = 10 + Math.random() * 20; // fire life
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Interpolate points for fast mouse movement
+        function linePlot(x0, y0, x1, y1) {
+            let dx = Math.abs(x1 - x0);
+            let dy = Math.abs(y1 - y0);
+            let sx = (x0 < x1) ? 1 : -1;
+            let sy = (y0 < y1) ? 1 : -1;
+            let err = dx - dy;
+
+            while(true) {
+                drawBrush(x0, y0);
+                if (x0 === x1 && y0 === y1) break;
+                let e2 = 2 * err;
+                if (e2 > -dy) { err -= dy; x0 += sx; }
+                if (e2 < dx) { err += dx; y0 += sy; }
+            }
+        }
+
+        function handleInputStart(e) {
+            isDrawing = true;
+            lastPos = getGridPos(e);
+            drawBrush(lastPos.x, lastPos.y);
+        }
+        function handleInputMove(e) {
+            if(!isDrawing) return;
+            let pos = getGridPos(e);
+            linePlot(lastPos.x, lastPos.y, pos.x, pos.y);
+            lastPos = pos;
+        }
+        function handleInputEnd() { isDrawing = false; lastPos = null; }
+
+        canvas.addEventListener('mousedown', handleInputStart);
+        window.addEventListener('mousemove', handleInputMove); // window for smooth tracking out of bounds
+        window.addEventListener('mouseup', handleInputEnd);
+        
+        canvas.addEventListener('touchstart', (e)=>{e.preventDefault(); handleInputStart(e);}, {passive:false});
+        window.addEventListener('touchmove', (e)=>{if(isDrawing) e.preventDefault(); handleInputMove(e);}, {passive:false});
+        window.addEventListener('touchend', handleInputEnd);
+
+        // --- Logic ---
+        function isEmpty(x, y) { return grid[y * GRID_WIDTH + x] === EMPTY; }
+        function getEl(x, y) { return grid[y * GRID_WIDTH + x]; }
+        function setEl(x, y, el) { grid[y * GRID_WIDTH + x] = el; }
+        function swap(x1, y1, x2, y2) {
+            let idx1 = y1 * GRID_WIDTH + x1;
+            let idx2 = y2 * GRID_WIDTH + x2;
+            let temp = grid[idx1];
+            grid[idx1] = grid[idx2];
+            grid[idx2] = temp;
+            
+            let tempS = stateData[idx1];
+            stateData[idx1] = stateData[idx2];
+            stateData[idx2] = tempS;
+        }
+
+        function simulate() {
+            // Traverse from bottom up. 
+            // Swap left/right direction randomly per row to avoid bias.
+            for (let y = GRID_HEIGHT - 1; y >= 0; y--) {
+                let dir = Math.random() > 0.5 ? 1 : -1;
+                let startX = dir === 1 ? 0 : GRID_WIDTH - 1;
+                let endX = dir === 1 ? GRID_WIDTH : -1;
+                
+                for (let x = startX; x !== endX; x += dir) {
+                    let idx = y * GRID_WIDTH + x;
+                    let el = grid[idx];
+                    if (el === EMPTY || el === STONE) continue;
+
+                    // --- SAND ---
+                    if (el === SAND) {
+                        if (y < GRID_HEIGHT - 1) {
+                            let below = getEl(x, y+1);
+                            if (below === EMPTY || below === WATER || below === ACID) {
+                                swap(x, y, x, y+1);
+                            } else {
+                                // Try diagonals
+                                let leftOk = x > 0 && (getEl(x-1, y+1) === EMPTY || getEl(x-1, y+1) === WATER || getEl(x-1, y+1) === ACID);
+                                let rightOk = x < GRID_WIDTH-1 && (getEl(x+1, y+1) === EMPTY || getEl(x+1, y+1) === WATER || getEl(x+1, y+1) === ACID);
+                                
+                                if (leftOk && rightOk) {
+                                    swap(x, y, Math.random() > 0.5 ? x-1 : x+1, y+1);
+                                } else if (leftOk) {
+                                    swap(x, y, x-1, y+1);
+                                } else if (rightOk) {
+                                    swap(x, y, x+1, y+1);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // --- WATER ---
+                    else if (el === WATER) {
+                        if (y < GRID_HEIGHT - 1 && isEmpty(x, y+1)) {
+                            swap(x, y, x, y+1);
+                        } else {
+                            // Spread sideways
+                            let leftOk = x > 0 && isEmpty(x-1, y);
+                            let rightOk = x < GRID_WIDTH-1 && isEmpty(x+1, y);
+                            let downLeftOk = y < GRID_HEIGHT - 1 && x > 0 && isEmpty(x-1, y+1);
+                            let downRightOk = y < GRID_HEIGHT - 1 && x < GRID_WIDTH-1 && isEmpty(x+1, y+1);
+
+                            if(downLeftOk && downRightOk) swap(x, y, Math.random()>0.5 ? x-1 : x+1, y+1);
+                            else if(downLeftOk) swap(x, y, x-1, y+1);
+                            else if(downRightOk) swap(x, y, x+1, y+1);
+                            else if(leftOk && rightOk) swap(x, y, Math.random()>0.5 ? x-1 : x+1, y);
+                            else if(leftOk) swap(x, y, x-1, y);
+                            else if(rightOk) swap(x, y, x+1, y);
+                        }
+                    }
+
+                    // --- ACID ---
+                    else if (el === ACID) {
+                        if (y < GRID_HEIGHT - 1) {
+                            let below = getEl(x, y+1);
+                            if (below === EMPTY || below === WATER) {
+                                swap(x, y, x, y+1);
+                            } else if (below !== ACID) {
+                                // Dissolve
+                                if(Math.random() < 0.1) {
+                                    setEl(x, y+1, EMPTY);
+                                    setEl(x, y, EMPTY); // consume acid
+                                    continue;
+                                }
+                            }
+                        }
+                        // spread like water if not dissolved
+                        if (getEl(x, y) === ACID) {
+                            let leftOk = x > 0 && isEmpty(x-1, y);
+                            let rightOk = x < GRID_WIDTH-1 && isEmpty(x+1, y);
+                            if(leftOk && rightOk) swap(x, y, Math.random()>0.5 ? x-1 : x+1, y);
+                            else if(leftOk) swap(x, y, x-1, y);
+                            else if(rightOk) swap(x, y, x+1, y);
+                        }
+                    }
+
+                    // --- FIRE ---
+                    else if (el === FIRE) {
+                        stateData[idx]--;
+                        if(stateData[idx] <= 0) {
+                            setEl(x, y, EMPTY); // Dies out
+                            continue;
+                        }
+
+                        // Move up and random horizontal
+                        if (y > 0) {
+                            let nx = x + Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+                            if(nx >= 0 && nx < GRID_WIDTH) {
+                                let target = getEl(nx, y-1);
+                                if(target === EMPTY) {
+                                    swap(x, y, nx, y-1);
+                                } else if(target === WATER) {
+                                    setEl(x, y, EMPTY); // extinguished
+                                    if(Math.random() < 0.5) setEl(nx, y-1, EMPTY); // evaporate
+                                } else if (target === WOOD) {
+                                    setEl(nx, y-1, FIRE);
+                                    stateData[(y-1)*GRID_WIDTH + nx] = 15;
+                                }
+                            }
+                        }
+                        
+                        // Burn adjacent Wood
+                        for(let dy=-1; dy<=1; dy++){
+                            for(let dx=-1; dx<=1; dx++){
+                                let nx=x+dx, ny=y+dy;
+                                if(nx>=0 && nx<GRID_WIDTH && ny>=0 && ny<GRID_HEIGHT){
+                                    if(getEl(nx,ny) === WOOD && Math.random() < 0.05) {
+                                        setEl(nx, ny, FIRE);
+                                        stateData[ny*GRID_WIDTH + nx] = 20;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Render ---
+        function render() {
+            let buf = imgData.data;
+            for (let i = 0; i < grid.length; i++) {
+                let el = grid[i];
+                let color = MATERIALS[el].color;
+                
+                // Slight color variation for sand/water
+                let r = color[0], g = color[1], b = color[2], a = color[3];
+                if(el === SAND || el === WATER || el === FIRE) {
+                    let tweak = (xorshift() % 20) - 10;
+                    r = Math.max(0, Math.min(255, r + tweak));
+                    g = Math.max(0, Math.min(255, g + tweak));
+                    b = Math.max(0, Math.min(255, b + tweak));
+                }
+                
+                let idx = i * 4;
+                buf[idx] = r;
+                buf[idx+1] = g;
+                buf[idx+2] = b;
+                buf[idx+3] = a;
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        // Fast random for noise
+        let seed = 1;
+        function xorshift() {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            return Math.abs(seed);
+        }
+
+        // --- Loop ---
+        let lastTime = 0;
+        let frames = 0;
+        let lastFpsTime = 0;
+        const fpsEl = document.getElementById('fps');
+
+        function loop(time) {
+            simulate();
+            render();
+
+            // FPS Counter
+            frames++;
+            if(time - lastFpsTime >= 1000) {
+                fpsEl.innerText = frames;
+                frames = 0;
+                lastFpsTime = time;
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+
+    </script>
+</body>
+</html>
