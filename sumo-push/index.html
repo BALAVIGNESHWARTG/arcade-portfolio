@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sumo Push</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;900&display=swap');
+        * { box-sizing:border-box; touch-action:none; user-select:none; }
+        body { margin:0; padding:0; background:#f5f0e8; height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Noto Sans JP',sans-serif; overflow:hidden; color:#222; }
+        #game-container { position:relative; width:100%; max-width:550px; aspect-ratio:1; }
+        canvas { display:block; width:100%; height:100%; }
+        .ui { position:absolute; top:10px; left:0; width:100%; display:flex; justify-content:space-around; font-size:28px; font-weight:900; pointer-events:none; z-index:2; }
+        .modal { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(245,240,232,0.92); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.3s; z-index:10; text-align:center; }
+        .modal.active { opacity:1; pointer-events:auto; }
+        .modal h1 { font-size:52px; margin:0 0 5px; color:#c0392b; }
+        .modal p { font-size:18px; color:#555; margin:5px 0 20px; line-height:1.5; }
+        .btn { background:#c0392b; color:#fff; border:none; padding:14px 36px; font-family:inherit; font-size:24px; font-weight:900; cursor:pointer; border-radius:50px; transition:all 0.2s; box-shadow:0 4px 15px rgba(192,57,43,0.4); }
+        .btn:hover { transform:scale(1.05); box-shadow:0 6px 20px rgba(192,57,43,0.6); }
+    </style>
+</head>
+<body>
+<div id="game-container">
+    <canvas id="c"></canvas>
+    <div class="ui">
+        <span id="p1-score" style="color:#2980b9;">P1: 0</span>
+        <span id="p2-score" style="color:#c0392b;">P2: 0</span>
+    </div>
+    <div class="modal active" id="menu">
+        <h1>相撲 SUMO</h1>
+        <p>Push your opponent out of the ring!<br>P1: WASD &nbsp;|&nbsp; P2: Arrows<br>Hold key to CHARGE, release to DASH!</p>
+        <button class="btn" onclick="startGame()">FIGHT!</button>
+    </div>
+    <div class="modal" id="game-over">
+        <h1 id="go-title">P1 WINS!</h1>
+        <p id="go-sub">First to 3 wins the match!</p>
+        <button class="btn" onclick="startGame()">REMATCH</button>
+    </div>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('game-container');
+
+let CW, CH, RING_R, RING_CX, RING_CY;
+function resize() {
+    CW = container.clientWidth; CH = container.clientHeight;
+    canvas.width = CW; canvas.height = CH;
+    RING_CX = CW / 2; RING_CY = CH / 2;
+    RING_R = Math.min(CW, CH) * 0.38;
+}
+window.addEventListener('resize', resize); resize();
+
+const PLAYER_R = 22;
+const ACCEL = 400;
+const FRICTION = 0.92;
+const CHARGE_MAX = 1.0;
+const DASH_POWER = 600;
+const BOUNCE_FACTOR = 0.6;
+const WINS_NEEDED = 3;
+
+let p1, p2, particles, isPlaying = false, lastTime = 0;
+let p1Score = 0, p2Score = 0;
+let roundOver = false, roundTimer = 0;
+let keys = {};
+
+document.addEventListener('keydown', e => { keys[e.code] = true; e.preventDefault(); });
+document.addEventListener('keyup', e => {
+    // Dash on release if charged
+    if (isPlaying && !roundOver) {
+        if (e.code === 'KeyW' || e.code === 'KeyS' || e.code === 'KeyA' || e.code === 'KeyD') {
+            if (p1.charging > 0.15) dash(p1);
+            p1.charging = 0;
+        }
+        if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+            if (p2.charging > 0.15) dash(p2);
+            p2.charging = 0;
+        }
+    }
+    keys[e.code] = false;
+});
+
+function dash(p) {
+    let power = Math.min(p.charging, CHARGE_MAX) * DASH_POWER;
+    p.vx += p.dashDirX * power;
+    p.vy += p.dashDirY * power;
+    p.charging = 0;
+    spawnRing(p.x, p.y, p.color);
+}
+
+function spawnRing(x, y, color) {
+    particles.push({ type:'ring', x, y, r:PLAYER_R, maxR:PLAYER_R*3, life:0.3, color });
+}
+function spawnBurst(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+        let a = Math.random()*Math.PI*2, s = 80+Math.random()*200;
+        particles.push({ type:'dot', x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.5+Math.random()*0.3, color });
+    }
+}
+
+function resetPositions() {
+    p1 = { x:RING_CX - 60, y:RING_CY, vx:0, vy:0, color:'#2980b9', charging:0, dashDirX:0, dashDirY:0 };
+    p2 = { x:RING_CX + 60, y:RING_CY, vx:0, vy:0, color:'#c0392b', charging:0, dashDirX:0, dashDirY:0 };
+    particles = [];
+    roundOver = false;
+}
+
+function startGame() {
+    resize();
+    p1Score = 0; p2Score = 0;
+    updateScores();
+    resetPositions();
+    isPlaying = true;
+    document.getElementById('menu').classList.remove('active');
+    document.getElementById('game-over').classList.remove('active');
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+}
+
+function updateScores() {
+    document.getElementById('p1-score').textContent = `P1: ${p1Score}`;
+    document.getElementById('p2-score').textContent = `P2: ${p2Score}`;
+}
+
+function updatePlayer(p, up, down, left, right, dt) {
+    let dx = 0, dy = 0;
+    if (keys[up]) dy = -1;
+    if (keys[down]) dy = 1;
+    if (keys[left]) dx = -1;
+    if (keys[right]) dx = 1;
+
+    if (dx !== 0 || dy !== 0) {
+        let len = Math.sqrt(dx*dx + dy*dy);
+        p.dashDirX = dx / len;
+        p.dashDirY = dy / len;
+        p.charging += dt;
+        // Normal movement (slower while charging)
+        let speedMult = Math.max(0.3, 1 - p.charging * 2);
+        p.vx += (dx / len) * ACCEL * dt * speedMult;
+        p.vy += (dy / len) * ACCEL * dt * speedMult;
+    }
+
+    p.vx *= FRICTION;
+    p.vy *= FRICTION;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+}
+
+function update(dt) {
+    if (roundOver) {
+        roundTimer -= dt;
+        if (roundTimer <= 0) {
+            if (p1Score >= WINS_NEEDED || p2Score >= WINS_NEEDED) {
+                isPlaying = false;
+                let winner = p1Score >= WINS_NEEDED ? 'P1' : 'P2';
+                let wColor = p1Score >= WINS_NEEDED ? '#2980b9' : '#c0392b';
+                document.getElementById('go-title').textContent = `${winner} WINS THE MATCH!`;
+                document.getElementById('go-title').style.color = wColor;
+                document.getElementById('game-over').classList.add('active');
+            } else {
+                resetPositions();
+            }
+        }
+        // Still update particles
+        updateParticles(dt);
+        return;
+    }
+
+    updatePlayer(p1, 'KeyW', 'KeyS', 'KeyA', 'KeyD', dt);
+    updatePlayer(p2, 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', dt);
+
+    // Player-player collision (elastic push)
+    let dx = p2.x - p1.x, dy = p2.y - p1.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+    let minDist = PLAYER_R * 2;
+    if (dist < minDist && dist > 0) {
+        let nx = dx / dist, ny = dy / dist;
+        let overlap = minDist - dist;
+        p1.x -= nx * overlap / 2;
+        p1.y -= ny * overlap / 2;
+        p2.x += nx * overlap / 2;
+        p2.y += ny * overlap / 2;
+
+        // Elastic velocity exchange
+        let relVx = p1.vx - p2.vx, relVy = p1.vy - p2.vy;
+        let dot = relVx * nx + relVy * ny;
+        p1.vx -= dot * nx * BOUNCE_FACTOR;
+        p1.vy -= dot * ny * BOUNCE_FACTOR;
+        p2.vx += dot * nx * BOUNCE_FACTOR;
+        p2.vy += dot * ny * BOUNCE_FACTOR;
+        spawnBurst((p1.x+p2.x)/2, (p1.y+p2.y)/2, '#f39c12', 8);
+    }
+
+    // Check ring-out
+    let d1 = Math.sqrt((p1.x-RING_CX)**2 + (p1.y-RING_CY)**2);
+    let d2 = Math.sqrt((p2.x-RING_CX)**2 + (p2.y-RING_CY)**2);
+
+    if (d1 > RING_R + PLAYER_R) {
+        p2Score++;
+        updateScores();
+        spawnBurst(p1.x, p1.y, p1.color, 20);
+        roundOver = true; roundTimer = 1.2;
+    } else if (d2 > RING_R + PLAYER_R) {
+        p1Score++;
+        updateScores();
+        spawnBurst(p2.x, p2.y, p2.color, 20);
+        roundOver = true; roundTimer = 1.2;
+    }
+
+    updateParticles(dt);
+}
+
+function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        if (p.type === 'dot') { p.x += p.vx * dt; p.y += p.vy * dt; }
+        if (p.type === 'ring') { p.r += (p.maxR - PLAYER_R) * dt * 4; }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, CW, CH);
+
+    // Background texture - subtle paper grain
+    ctx.fillStyle = '#f5f0e8';
+    ctx.fillRect(0, 0, CW, CH);
+
+    // Ring shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.beginPath(); ctx.arc(RING_CX+4, RING_CY+4, RING_R, 0, Math.PI*2); ctx.fill();
+
+    // Ring (Dohyō)
+    ctx.fillStyle = '#e8dcc8';
+    ctx.beginPath(); ctx.arc(RING_CX, RING_CY, RING_R, 0, Math.PI*2); ctx.fill();
+
+    // Ring border (tawara bales)
+    ctx.strokeStyle = '#8b6914';
+    ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.arc(RING_CX, RING_CY, RING_R, 0, Math.PI*2); ctx.stroke();
+    // Inner line
+    ctx.strokeStyle = '#d4a017';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(RING_CX, RING_CY, RING_R - 6, 0, Math.PI*2); ctx.stroke();
+
+    // Starting marks (shikiri-sen)
+    ctx.fillStyle = '#8b6914';
+    ctx.fillRect(RING_CX - 40, RING_CY - 2, 25, 4);
+    ctx.fillRect(RING_CX + 15, RING_CY - 2, 25, 4);
+
+    // Particles
+    for (let p of particles) {
+        let a = Math.max(0, p.life * 2);
+        if (p.type === 'dot') {
+            ctx.fillStyle = p.color; ctx.globalAlpha = a;
+            ctx.fillRect(p.x-3, p.y-3, 6, 6);
+        } else if (p.type === 'ring') {
+            ctx.strokeStyle = p.color; ctx.globalAlpha = a * 0.5; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.stroke();
+        }
+    }
+    ctx.globalAlpha = 1;
+
+    // Players
+    [p1, p2].forEach(p => {
+        // Charge indicator
+        if (p.charging > 0.15) {
+            let chargeR = PLAYER_R + 5 + Math.min(p.charging, CHARGE_MAX) * 15;
+            ctx.strokeStyle = p.color; ctx.lineWidth = 3; ctx.globalAlpha = 0.4 + Math.min(p.charging, CHARGE_MAX) * 0.5;
+            ctx.beginPath(); ctx.arc(p.x, p.y, chargeR, 0, Math.PI*2); ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath(); ctx.ellipse(p.x+2, p.y+4, PLAYER_R, PLAYER_R*0.7, 0, 0, Math.PI*2); ctx.fill();
+        // Body
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, PLAYER_R, 0, Math.PI*2); ctx.fill();
+        // Face highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath(); ctx.arc(p.x - 5, p.y - 5, PLAYER_R * 0.4, 0, Math.PI*2); ctx.fill();
+        // Belt line
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(p.x, p.y, PLAYER_R, 0.3, Math.PI - 0.3); ctx.stroke();
+    });
+}
+
+function loop(ts) {
+    if (!isPlaying) return;
+    let dt = (ts - lastTime) / 1000;
+    lastTime = ts;
+    if (dt > 0.05) dt = 0.05;
+    update(dt); draw();
+    requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

@@ -214,17 +214,17 @@ Game state synchronization and turn logic.
 
 [x] Neon Connect Four (Completed)
 
-[ ] Rock Paper Scissors
+[x] RPS Fighter (Completed)
 
-[ ] Turn-Based Battle
+[x] Tank Wars (Completed)
 
-[ ] Two Player Pong
+[x] Sumo Push (Completed)
 
-[ ] Reaction Duel
+[x] Air Hockey (Completed)
 
-[ ] Strategy Grid War
+[x] Quiz Clash (Completed)
 
-[ ] Guess the Number
+[x] Color Grab (Completed)
 
 [ ] Word Duel
 

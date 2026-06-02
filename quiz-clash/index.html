@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz Clash</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Roboto:wght@500;700&display=swap');
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        body { margin:0; padding:0; background:#12052b; height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Roboto', sans-serif; overflow:hidden; color:#fff; }
+        
+        #game-container { position:relative; width:100%; max-width:800px; height:100%; max-height:600px; display:flex; flex-direction:column; background:radial-gradient(circle at 50% 30%, #301166, #12052b); border: 3px solid #ff00ff; box-shadow: 0 0 30px rgba(255,0,255,0.4); border-radius: 12px; overflow:hidden; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: rgba(0,0,0,0.5); border-bottom: 2px solid #ff00ff; }
+        .title { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 900; color: #ff00ff; text-shadow: 0 0 10px #ff00ff; margin:0;}
+        .round-info { font-size: 18px; font-weight: 700; color: #00ffff; }
+
+        .main-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; position: relative; }
+        
+        .question-box { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 30px; line-height: 1.4; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); width: 100%; max-width: 600px; transition: opacity 0.3s; }
+        .question-box.hidden { opacity: 0; }
+
+        .answers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 600px; }
+        .answer-btn { background: #2a1b4d; color: #fff; border: 2px solid #5d3eb0; padding: 15px 20px; font-size: 18px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+        .answer-btn:disabled { opacity: 0.8; cursor: not-allowed; }
+        .answer-btn.selected { background: #ffd700; color: #000; border-color: #fff; box-shadow: 0 0 15px #ffd700; transform: scale(1.05); }
+        .answer-btn.correct { background: #00ff00; color: #000; border-color: #fff; box-shadow: 0 0 20px #00ff00; }
+        .answer-btn.wrong { background: #ff0000; color: #fff; border-color: #fff; box-shadow: 0 0 20px #ff0000; opacity: 0.6; }
+        
+        .players-bar { display: flex; justify-content: space-around; padding: 15px; background: rgba(0,0,0,0.6); border-top: 2px solid #00ffff; }
+        .player-card { display: flex; flex-direction: column; align-items: center; padding: 10px 15px; border-radius: 8px; border: 2px solid transparent; background: rgba(255,255,255,0.05); min-width: 120px; transition: all 0.2s; }
+        .player-card.active { border-color: currentColor; box-shadow: 0 0 15px currentColor; transform: translateY(-5px); background: rgba(255,255,255,0.15); }
+        .p-name { font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 900; margin-bottom: 5px; }
+        .p-score { font-size: 24px; font-weight: 700; }
+        .p-key { font-size: 12px; opacity: 0.7; margin-top: 5px; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; }
+        
+        .timer-bar-bg { width: 100%; height: 6px; background: #333; position: absolute; bottom: 0; left: 0; }
+        .timer-bar-fill { height: 100%; width: 100%; background: #00ffff; transition: width 0.1s linear; }
+        .timer-bar-fill.urgent { background: #ff0000; }
+
+        .status-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: 'Montserrat', sans-serif; font-size: 64px; font-weight: 900; text-align: center; text-shadow: 0 0 20px currentColor, 4px 4px 0 #000; pointer-events: none; opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 5; }
+        .status-overlay.show { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+
+        .modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(18, 5, 43, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 10; text-align: center; }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        .modal h1 { font-family: 'Montserrat', sans-serif; font-size: 52px; margin: 0 0 10px; color: #ff00ff; text-shadow: 0 0 20px #ff00ff; }
+        .modal p { font-size: 18px; color: #ccc; margin: 5px 0 30px; line-height: 1.5; max-width: 600px; }
+        .btn-row { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+        .btn { background: transparent; border: 2px solid; padding: 15px 35px; font-family: 'Montserrat', sans-serif; font-size: 20px; font-weight: 900; cursor: pointer; border-radius: 8px; transition: all 0.2s; color: #fff; }
+        .btn:hover { background: currentColor; color: #000; }
+        .btn-play { color: #00ffff; border-color: #00ffff; }
+        
+        .setup-row { display: flex; gap: 20px; margin-bottom: 30px; align-items: center; }
+        .player-toggle { padding: 10px 20px; border: 2px solid #555; border-radius: 8px; cursor: pointer; font-weight: bold; opacity: 0.5; transition: 0.2s; }
+        .player-toggle.active { opacity: 1; border-color: currentColor; box-shadow: 0 0 10px currentColor; }
+
+        @media (max-width: 600px) {
+            .players-bar { flex-wrap: wrap; }
+            .player-card { min-width: 45%; margin-bottom: 10px; }
+            .answers-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="header">
+        <h1 class="title">QUIZ CLASH</h1>
+        <div class="round-info" id="round-info">Round 1/10</div>
+    </div>
+    
+    <div class="main-stage">
+        <div class="question-box hidden" id="question-text">Getting question ready...</div>
+        <div class="answers-grid" id="answers-grid">
+            <button class="answer-btn" onclick="selectAnswer(0)" disabled id="btn-0">A</button>
+            <button class="answer-btn" onclick="selectAnswer(1)" disabled id="btn-1">B</button>
+            <button class="answer-btn" onclick="selectAnswer(2)" disabled id="btn-2">C</button>
+            <button class="answer-btn" onclick="selectAnswer(3)" disabled id="btn-3">D</button>
+        </div>
+        
+        <div class="timer-bar-bg">
+            <div class="timer-bar-fill" id="timer-bar"></div>
+        </div>
+        
+        <div class="status-overlay" id="status-overlay"></div>
+    </div>
+    
+    <div class="players-bar" id="players-bar">
+        <!-- Player cards injected here -->
+    </div>
+
+    <!-- Main Menu -->
+    <div class="modal active" id="menu">
+        <h1>QUIZ CLASH</h1>
+        <p>Local Multiplayer Trivia Game Show.<br>When you know the answer, hit your BUZZER key first to answer!<br>Wrong answers lose points.</p>
+        
+        <div class="setup-row">
+            <div class="player-toggle active" style="color: #ff3366;" onclick="togglePlayer(1)">P1 (Q)</div>
+            <div class="player-toggle active" style="color: #33ccff;" onclick="togglePlayer(2)">P2 (P)</div>
+            <div class="player-toggle" style="color: #33ff33;" id="toggle-p3" onclick="togglePlayer(3)">P3 (Z)</div>
+            <div class="player-toggle" style="color: #ffcc00;" id="toggle-p4" onclick="togglePlayer(4)">P4 (M)</div>
+        </div>
+        
+        <button class="btn btn-play" onclick="startGame()">START SHOW</button>
+    </div>
+
+    <!-- Game Over -->
+    <div class="modal" id="game-over">
+        <h1 id="go-title">GAME OVER</h1>
+        <p id="go-standings"></p>
+        <button class="btn btn-play" onclick="showMenu()">BACK TO MENU</button>
+    </div>
+</div>
+
+<script>
+// --- Trivia Database ---
+const TRIVIA = [
+    { q: "What is the capital of Japan?", a: ["Tokyo", "Kyoto", "Osaka", "Seoul"], ans: 0 },
+    { q: "Which planet is known as the Red Planet?", a: ["Mars", "Venus", "Jupiter", "Saturn"], ans: 0 },
+    { q: "What is the largest ocean on Earth?", a: ["Pacific", "Atlantic", "Indian", "Arctic"], ans: 0 },
+    { q: "Who painted the Mona Lisa?", a: ["Leonardo da Vinci", "Pablo Picasso", "Vincent van Gogh", "Michelangelo"], ans: 0 },
+    { q: "What is the chemical symbol for Gold?", a: ["Au", "Ag", "Fe", "Go"], ans: 0 },
+    { q: "In what year did the Titanic sink?", a: ["1912", "1905", "1918", "1923"], ans: 0 },
+    { q: "Which element is most abundant in Earth's atmosphere?", a: ["Nitrogen", "Oxygen", "Carbon Dioxide", "Hydrogen"], ans: 0 },
+    { q: "What is the hardest natural substance on Earth?", a: ["Diamond", "Graphene", "Quartz", "Titanium"], ans: 0 },
+    { q: "Who wrote 'Romeo and Juliet'?", a: ["William Shakespeare", "Charles Dickens", "Jane Austen", "Mark Twain"], ans: 0 },
+    { q: "What is the smallest country in the world?", a: ["Vatican City", "Monaco", "San Marino", "Liechtenstein"], ans: 0 },
+    { q: "What is the boiling point of water (Celsius)?", a: ["100", "90", "120", "212"], ans: 0 },
+    { q: "Which animal is the tallest in the world?", a: ["Giraffe", "Elephant", "Ostrich", "Kangaroo"], ans: 0 },
+    { q: "How many continents are there?", a: ["7", "6", "5", "8"], ans: 0 },
+    { q: "What is the main ingredient in guacamole?", a: ["Avocado", "Tomato", "Onion", "Pepper"], ans: 0 },
+    { q: "Which planet is closest to the Sun?", a: ["Mercury", "Venus", "Earth", "Mars"], ans: 0 },
+    { q: "How many legs does a spider have?", a: ["8", "6", "10", "12"], ans: 0 },
+    { q: "What color do you get by mixing red and yellow?", a: ["Orange", "Green", "Purple", "Brown"], ans: 0 },
+    { q: "What is the largest mammal?", a: ["Blue Whale", "Elephant", "Giraffe", "Hippopotamus"], ans: 0 },
+    { q: "What is the currency of the UK?", a: ["Pound Sterling", "Euro", "Dollar", "Franc"], ans: 0 },
+    { q: "Which programming language is known for web development?", a: ["JavaScript", "C++", "Python", "Java"], ans: 0 }
+];
+
+// Shuffle helper
+function shuffleArray(array) {
+    let a = [...array];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+const PLAYER_CONFIG = [
+    { id: 1, name: "P1", color: "#ff3366", key: "KeyQ", keyLabel: "Q" },
+    { id: 2, name: "P2", color: "#33ccff", key: "KeyP", keyLabel: "P" },
+    { id: 3, name: "P3", color: "#33ff33", key: "KeyZ", keyLabel: "Z" },
+    { id: 4, name: "P4", color: "#ffcc00", key: "KeyM", keyLabel: "M" }
+];
+
+let activePlayers = [1, 2]; // Player IDs playing
+let players = [];
+let currentQuestionIndex = 0;
+let questions = [];
+const TOTAL_ROUNDS = 10;
+let gameState = 'IDLE'; // IDLE, READING, BUZZED, ANSWERED, ROUND_END
+let activePlayerObj = null;
+
+let readTimer = 0;
+const MAX_READ_TIME = 10.0;
+let answerTimer = 0;
+const MAX_ANSWER_TIME = 5.0;
+let lastTime = 0;
+let animationFrameId;
+
+const qTextEl = document.getElementById('question-text');
+const roundInfoEl = document.getElementById('round-info');
+const timerBarFill = document.getElementById('timer-bar');
+const statusOverlay = document.getElementById('status-overlay');
+const playersBar = document.getElementById('players-bar');
+const answerBtns = [
+    document.getElementById('btn-0'),
+    document.getElementById('btn-1'),
+    document.getElementById('btn-2'),
+    document.getElementById('btn-3')
+];
+
+let currentAnswersMapped = []; // Maps button index to original answer index
+
+function togglePlayer(id) {
+    if (id <= 2) return; // P1 and P2 always active
+    const idx = activePlayers.indexOf(id);
+    const el = document.getElementById(`toggle-p${id}`);
+    if (idx > -1) {
+        activePlayers.splice(idx, 1);
+        el.classList.remove('active');
+    } else {
+        activePlayers.push(id);
+        el.classList.add('active');
+    }
+}
+
+function showMenu() {
+    document.getElementById('menu').classList.add('active');
+    document.getElementById('game-over').classList.remove('active');
+    cancelAnimationFrame(animationFrameId);
+}
+
+function startGame() {
+    document.getElementById('menu').classList.remove('active');
+    
+    // Initialize players
+    players = [];
+    playersBar.innerHTML = '';
+    
+    // Sort active players
+    activePlayers.sort((a,b) => a-b);
+    
+    activePlayers.forEach(id => {
+        let conf = PLAYER_CONFIG.find(p => p.id === id);
+        let p = { ...conf, score: 0, locked: false };
+        players.push(p);
+        
+        let card = document.createElement('div');
+        card.className = 'player-card';
+        card.id = `card-p${p.id}`;
+        card.style.color = p.color;
+        card.innerHTML = `
+            <div class="p-name">${p.name}</div>
+            <div class="p-score" id="score-p${p.id}">0</div>
+            <div class="p-key">BUZZ: ${p.keyLabel}</div>
+        `;
+        playersBar.appendChild(card);
+    });
+
+    questions = shuffleArray(TRIVIA).slice(0, TOTAL_ROUNDS);
+    currentQuestionIndex = 0;
+    
+    nextRound();
+    lastTime = performance.now();
+    animationFrameId = requestAnimationFrame(loop);
+}
+
+function nextRound() {
+    if (currentQuestionIndex >= TOTAL_ROUNDS) {
+        endGame();
+        return;
+    }
+
+    gameState = 'READING';
+    activePlayerObj = null;
+    readTimer = MAX_READ_TIME;
+    
+    roundInfoEl.textContent = `Round ${currentQuestionIndex + 1}/${TOTAL_ROUNDS}`;
+    
+    let q = questions[currentQuestionIndex];
+    qTextEl.textContent = q.q;
+    qTextEl.classList.remove('hidden');
+    
+    // Setup answers (randomize order)
+    let ansIndices = [0, 1, 2, 3];
+    currentAnswersMapped = shuffleArray(ansIndices);
+    
+    for (let i = 0; i < 4; i++) {
+        let originalIdx = currentAnswersMapped[i];
+        answerBtns[i].textContent = q.a[originalIdx];
+        answerBtns[i].className = 'answer-btn'; // reset classes
+        answerBtns[i].disabled = true; // disabled until buzzed
+    }
+    
+    // Reset player locks and cards
+    players.forEach(p => {
+        p.locked = false;
+        let card = document.getElementById(`card-p${p.id}`);
+        card.classList.remove('active');
+        card.style.opacity = '1';
+    });
+    
+    timerBarFill.style.width = '100%';
+    timerBarFill.classList.remove('urgent');
+    statusOverlay.classList.remove('show');
+}
+
+// Input handling (Buzz in)
+window.addEventListener('keydown', e => {
+    if (gameState !== 'READING') return;
+    
+    let p = players.find(pl => pl.key === e.code);
+    if (p && !p.locked) {
+        handleBuzzer(p);
+    }
+});
+
+function handleBuzzer(player) {
+    gameState = 'BUZZED';
+    activePlayerObj = player;
+    answerTimer = MAX_ANSWER_TIME;
+    
+    // Visual feedback
+    players.forEach(p => {
+        let card = document.getElementById(`card-p${p.id}`);
+        if (p.id === player.id) {
+            card.classList.add('active');
+            showStatus(`${p.name} BUZZED!`, p.color);
+        } else {
+            card.style.opacity = '0.4';
+        }
+    });
+    
+    // Enable answers
+    answerBtns.forEach(btn => btn.disabled = false);
+}
+
+function selectAnswer(btnIndex) {
+    if (gameState !== 'BUZZED' || !activePlayerObj) return;
+    
+    gameState = 'ANSWERED';
+    let originalIdx = currentAnswersMapped[btnIndex];
+    let isCorrect = (originalIdx === questions[currentQuestionIndex].ans);
+    
+    answerBtns.forEach(btn => btn.disabled = true);
+    answerBtns[btnIndex].classList.add('selected');
+    
+    setTimeout(() => {
+        resolveAnswer(btnIndex, isCorrect);
+    }, 1000);
+}
+
+function resolveAnswer(btnIndex, isCorrect) {
+    let p = activePlayerObj;
+    let card = document.getElementById(`card-p${p.id}`);
+    
+    if (isCorrect) {
+        answerBtns[btnIndex].classList.replace('selected', 'correct');
+        p.score += 100;
+        showStatus("+100", "#00ff00");
+        endRoundSequence();
+    } else {
+        answerBtns[btnIndex].classList.replace('selected', 'wrong');
+        p.score -= 50;
+        p.locked = true; // cannot buzz again this round
+        showStatus("-50", "#ff0000");
+        
+        // Show correct answer visually for a sec, then continue if others unlocked
+        let correctBtnIdx = currentAnswersMapped.indexOf(questions[currentQuestionIndex].ans);
+        
+        setTimeout(() => {
+            let stillPlaying = players.filter(pl => !pl.locked);
+            if (stillPlaying.length > 0) {
+                // Resume reading state
+                gameState = 'READING';
+                activePlayerObj = null;
+                card.classList.remove('active');
+                card.style.opacity = '0.3';
+                
+                players.forEach(pl => {
+                    if(!pl.locked) document.getElementById(`card-p${pl.id}`).style.opacity = '1';
+                });
+                
+                answerBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.remove('selected');
+                });
+                statusOverlay.classList.remove('show');
+            } else {
+                // Everyone locked out
+                answerBtns[correctBtnIdx].classList.add('correct');
+                showStatus("NOBODY GOT IT", "#aaa");
+                endRoundSequence();
+            }
+            updateScores();
+        }, 1500);
+    }
+    
+    updateScores();
+}
+
+function updateScores() {
+    players.forEach(p => {
+        document.getElementById(`score-p${p.id}`).textContent = p.score;
+    });
+}
+
+function showStatus(text, color) {
+    statusOverlay.textContent = text;
+    statusOverlay.style.color = color;
+    statusOverlay.classList.add('show');
+}
+
+function endRoundSequence() {
+    gameState = 'ROUND_END';
+    // highlight correct answer
+    let correctBtnIdx = currentAnswersMapped.indexOf(questions[currentQuestionIndex].ans);
+    answerBtns[correctBtnIdx].classList.add('correct');
+    
+    setTimeout(() => {
+        currentQuestionIndex++;
+        nextRound();
+    }, 2500);
+}
+
+function timeRanOut() {
+    if (gameState === 'READING') {
+        // Round time out
+        showStatus("TIME'S UP!", "#ffaa00");
+        endRoundSequence();
+    } else if (gameState === 'BUZZED') {
+        // Player took too long to answer
+        let p = activePlayerObj;
+        p.score -= 50;
+        p.locked = true;
+        showStatus("TOO SLOW! -50", "#ff0000");
+        updateScores();
+        
+        setTimeout(() => {
+            let stillPlaying = players.filter(pl => !pl.locked);
+            if (stillPlaying.length > 0) {
+                gameState = 'READING';
+                activePlayerObj = null;
+                players.forEach(pl => {
+                    let card = document.getElementById(`card-p${pl.id}`);
+                    card.classList.remove('active');
+                    if(pl.locked) card.style.opacity = '0.3';
+                    else card.style.opacity = '1';
+                });
+                answerBtns.forEach(btn => { btn.disabled = true; btn.classList.remove('selected'); });
+                statusOverlay.classList.remove('show');
+            } else {
+                endRoundSequence();
+            }
+        }, 1500);
+    }
+}
+
+function endGame() {
+    gameState = 'IDLE';
+    let sorted = [...players].sort((a,b) => b.score - a.score);
+    
+    let html = '';
+    sorted.forEach((p, i) => {
+        html += `<div style="color:${p.color}; margin: 10px 0; font-size: 24px; font-weight: bold;">
+            #${i+1} ${p.name}: ${p.score} pts
+        </div>`;
+    });
+    
+    document.getElementById('go-standings').innerHTML = html;
+    document.getElementById('go-title').textContent = `${sorted[0].name} WINS!`;
+    document.getElementById('go-title').style.color = sorted[0].color;
+    
+    document.getElementById('game-over').classList.add('active');
+}
+
+function loop(ts) {
+    if (gameState === 'IDLE') return;
+    
+    let dt = (ts - lastTime) / 1000;
+    lastTime = ts;
+    if (dt > 0.1) dt = 0.1;
+
+    if (gameState === 'READING') {
+        readTimer -= dt;
+        let pct = (readTimer / MAX_READ_TIME) * 100;
+        timerBarFill.style.width = `${Math.max(0, pct)}%`;
+        if (readTimer < 3) timerBarFill.classList.add('urgent');
+        else timerBarFill.classList.remove('urgent');
+        
+        if (readTimer <= 0) timeRanOut();
+        
+    } else if (gameState === 'BUZZED') {
+        answerTimer -= dt;
+        let pct = (answerTimer / MAX_ANSWER_TIME) * 100;
+        timerBarFill.style.width = `${Math.max(0, pct)}%`;
+        timerBarFill.classList.add('urgent');
+        
+        if (answerTimer <= 0) timeRanOut();
+    }
+
+    animationFrameId = requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

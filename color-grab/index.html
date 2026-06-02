@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Color Grab</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        body { margin:0; padding:0; background:#222; height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Fredoka One', cursive; overflow:hidden; color:#fff; transition: background 0.2s; }
+        
+        #game-container { position:relative; width:100%; max-width:600px; aspect-ratio:1; display:flex; flex-direction:column; background:#111; border-radius:20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow:hidden; }
+
+        .players-container { position:absolute; width:100%; height:100%; pointer-events:none; }
+        
+        .player-zone { position:absolute; width: 140px; height: 100px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.4); border-radius: 15px; transition: transform 0.1s, box-shadow 0.1s; border: 4px solid; }
+        
+        /* Layout for 4 corners */
+        #zone-1 { top: 10px; left: 10px; border-color: #ff3366; color: #ff3366; }
+        #zone-2 { top: 10px; right: 10px; border-color: #33ccff; color: #33ccff; }
+        #zone-3 { bottom: 10px; left: 10px; border-color: #33ff33; color: #33ff33; }
+        #zone-4 { bottom: 10px; right: 10px; border-color: #ffcc00; color: #ffcc00; }
+        
+        .player-zone.active { opacity: 1; }
+        .player-zone.inactive { opacity: 0.2; }
+        .player-zone.bump { transform: scale(1.1); box-shadow: 0 0 20px currentColor; }
+        
+        .p-name { font-size: 20px; }
+        .p-score { font-size: 32px; }
+        .p-key { font-size: 14px; opacity: 0.8; background:#000; padding:2px 8px; border-radius:10px; margin-top:5px; }
+        
+        .center-stage { position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); display:flex; align-items:center; justify-content:center; flex-direction:column; }
+        
+        #target-shape { width: 150px; height: 150px; border-radius: 50%; background: #333; transition: all 0.1s; box-shadow: 0 0 0 rgba(0,0,0,0); position: relative; display: flex; align-items: center; justify-content: center; }
+        
+        #target-shape.color-1 { background: #ff3366; box-shadow: 0 0 40px #ff3366; }
+        #target-shape.color-2 { background: #33ccff; box-shadow: 0 0 40px #33ccff; }
+        #target-shape.color-3 { background: #33ff33; box-shadow: 0 0 40px #33ff33; }
+        #target-shape.color-4 { background: #ffcc00; box-shadow: 0 0 40px #ffcc00; }
+        #target-shape.color-white { background: #fff; box-shadow: 0 0 40px #fff; } /* Trick color */
+        
+        #msg { position: absolute; font-size: 40px; font-weight:bold; opacity:0; transition: opacity 0.2s, transform 0.2s; white-space:nowrap; text-shadow: 2px 2px 0 #000; pointer-events:none; }
+        #msg.show { opacity:1; transform: translateY(-50px); }
+
+        .modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 10, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 10; text-align: center; }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        .modal h1 { font-size: 52px; margin: 0 0 10px; color: #fff; text-shadow: 0 0 10px #fff; }
+        .modal p { font-size: 18px; color: #ccc; margin: 5px 0 30px; line-height: 1.5; max-width: 400px; font-family: sans-serif; font-weight:bold; }
+        .btn { background: #fff; border: none; padding: 15px 40px; font-family: inherit; font-size: 24px; cursor: pointer; border-radius: 50px; transition: all 0.2s; color: #000; box-shadow: 0 5px 0 #ccc; }
+        .btn:hover { transform: translateY(2px); box-shadow: 0 3px 0 #ccc; }
+        .btn:active { transform: translateY(5px); box-shadow: 0 0 0 #ccc; }
+        
+        .setup-row { display: flex; gap: 15px; margin-bottom: 30px; flex-wrap:wrap; justify-content:center; }
+        .player-toggle { padding: 10px 20px; border: 3px solid; border-radius: 12px; cursor: pointer; font-size: 18px; opacity: 0.3; transition: 0.2s; background: rgba(0,0,0,0.5); }
+        .player-toggle.active { opacity: 1; box-shadow: inset 0 0 15px currentColor; }
+        
+        .timer-text { position:absolute; top: 150px; font-size:24px; color:#666; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <div class="players-container">
+        <div class="player-zone active" id="zone-1">
+            <div class="p-name">P1</div>
+            <div class="p-score" id="score-1">0</div>
+            <div class="p-key">KEY: Q</div>
+        </div>
+        <div class="player-zone active" id="zone-2">
+            <div class="p-name">P2</div>
+            <div class="p-score" id="score-2">0</div>
+            <div class="p-key">KEY: P</div>
+        </div>
+        <div class="player-zone inactive" id="zone-3">
+            <div class="p-name">P3</div>
+            <div class="p-score" id="score-3">0</div>
+            <div class="p-key">KEY: Z</div>
+        </div>
+        <div class="player-zone inactive" id="zone-4">
+            <div class="p-name">P4</div>
+            <div class="p-score" id="score-4">0</div>
+            <div class="p-key">KEY: M</div>
+        </div>
+    </div>
+    
+    <div class="center-stage">
+        <div id="target-shape"></div>
+        <div id="msg"></div>
+        <div class="timer-text" id="time-left">30s</div>
+    </div>
+
+    <!-- Main Menu -->
+    <div class="modal active" id="menu">
+        <h1>COLOR GRAB</h1>
+        <p>When the center circle turns YOUR color, press your key FAST! <br><br>Hit your key on the WRONG color? Lose a point. <br>Wait too long? Lose a point.</p>
+        
+        <div class="setup-row">
+            <div class="player-toggle active" style="color: #ff3366; border-color:#ff3366;" onclick="togglePlayer(1)">P1 (Q)</div>
+            <div class="player-toggle active" style="color: #33ccff; border-color:#33ccff;" onclick="togglePlayer(2)">P2 (P)</div>
+            <div class="player-toggle" style="color: #33ff33; border-color:#33ff33;" id="toggle-p3" onclick="togglePlayer(3)">P3 (Z)</div>
+            <div class="player-toggle" style="color: #ffcc00; border-color:#ffcc00;" id="toggle-p4" onclick="togglePlayer(4)">P4 (M)</div>
+        </div>
+        
+        <button class="btn" onclick="startGame()">START</button>
+    </div>
+
+    <!-- Game Over -->
+    <div class="modal" id="game-over">
+        <h1 id="go-title" style="color:#fff;">TIME'S UP!</h1>
+        <p id="go-standings"></p>
+        <button class="btn" onclick="showMenu()">MENU</button>
+    </div>
+</div>
+
+<script>
+const PLAYER_CONFIG = {
+    1: { key: "KeyQ", color: "#ff3366", name: "P1" },
+    2: { key: "KeyP", color: "#33ccff", name: "P2" },
+    3: { key: "KeyZ", color: "#33ff33", name: "P3" },
+    4: { key: "KeyM", color: "#ffcc00", name: "P4" }
+};
+
+let activePlayers = [1, 2];
+let scores = { 1:0, 2:0, 3:0, 4:0 };
+let isPlaying = false;
+let gameTimer = 30.0;
+let lastTime = 0;
+
+let state = 'WAITING'; // WAITING (dark), SHOWING (color active)
+let currentColorId = 0; // 1-4, or 5 for trick color
+let stateTimer = 0;
+let canPress = false;
+
+const shapeEl = document.getElementById('target-shape');
+const msgEl = document.getElementById('msg');
+const timeEl = document.getElementById('time-left');
+
+function togglePlayer(id) {
+    if (id <= 2) return; 
+    const idx = activePlayers.indexOf(id);
+    const el = document.getElementById(`toggle-p${id}`);
+    const zone = document.getElementById(`zone-${id}`);
+    if (idx > -1) {
+        activePlayers.splice(idx, 1);
+        el.classList.remove('active');
+        zone.classList.add('inactive');
+        zone.classList.remove('active');
+    } else {
+        activePlayers.push(id);
+        el.classList.add('active');
+        zone.classList.remove('inactive');
+        zone.classList.add('active');
+    }
+}
+
+function showMenu() {
+    document.getElementById('menu').classList.add('active');
+    document.getElementById('game-over').classList.remove('active');
+    isPlaying = false;
+}
+
+function startGame() {
+    document.getElementById('menu').classList.remove('active');
+    
+    // Reset
+    activePlayers.forEach(id => {
+        scores[id] = 0;
+        document.getElementById(`score-${id}`).textContent = '0';
+    });
+    
+    gameTimer = 30.0;
+    isPlaying = true;
+    state = 'WAITING';
+    stateTimer = 1.0;
+    canPress = false;
+    shapeEl.className = '';
+    
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+}
+
+function showMsg(text, color) {
+    msgEl.textContent = text;
+    msgEl.style.color = color;
+    msgEl.classList.add('show');
+    setTimeout(() => { msgEl.classList.remove('show'); }, 600);
+}
+
+function bumpZone(id) {
+    let z = document.getElementById(`zone-${id}`);
+    z.classList.add('bump');
+    setTimeout(() => z.classList.remove('bump'), 150);
+}
+
+function updateScores() {
+    activePlayers.forEach(id => {
+        document.getElementById(`score-${id}`).textContent = scores[id];
+    });
+}
+
+// Input handling
+window.addEventListener('keydown', e => {
+    if (!isPlaying || !canPress) return;
+    
+    // Find player by key
+    let pid = null;
+    activePlayers.forEach(id => {
+        if (PLAYER_CONFIG[id].key === e.code) pid = id;
+    });
+    
+    if (pid) {
+        canPress = false; // block others
+        bumpZone(pid);
+        
+        if (pid === currentColorId) {
+            // Correct!
+            scores[pid]++;
+            showMsg("+1!", PLAYER_CONFIG[pid].color);
+            document.body.style.background = PLAYER_CONFIG[pid].color;
+            setTimeout(() => document.body.style.background = '#222', 150);
+        } else {
+            // Wrong!
+            scores[pid]--;
+            showMsg("-1!", PLAYER_CONFIG[pid].color);
+        }
+        
+        updateScores();
+        
+        // Immediately end state
+        state = 'WAITING';
+        shapeEl.className = '';
+        stateTimer = 0.5 + Math.random() * 1.5;
+    }
+});
+
+function pickNextColor() {
+    // 80% chance of a real player's color, 20% chance of trick (white)
+    if (Math.random() < 0.2) {
+        currentColorId = 5; // White
+        shapeEl.className = 'color-white';
+    } else {
+        // Pick random active player
+        currentColorId = activePlayers[Math.floor(Math.random() * activePlayers.length)];
+        shapeEl.className = `color-${currentColorId}`;
+    }
+    
+    state = 'SHOWING';
+    canPress = true;
+    
+    // Time they have to press depends on game progress, gets faster
+    let speedMult = Math.max(0.4, gameTimer / 30.0);
+    stateTimer = (0.7 + Math.random() * 0.5) * speedMult;
+}
+
+function loop(ts) {
+    if (!isPlaying) return;
+    
+    let dt = (ts - lastTime) / 1000;
+    lastTime = ts;
+    if (dt > 0.1) dt = 0.1;
+    
+    gameTimer -= dt;
+    timeEl.textContent = Math.ceil(gameTimer) + 's';
+    
+    if (gameTimer <= 0) {
+        isPlaying = false;
+        shapeEl.className = '';
+        
+        // End game
+        let sorted = [...activePlayers].sort((a,b) => scores[b] - scores[a]);
+        let winnerId = sorted[0];
+        
+        let html = '';
+        sorted.forEach((id, i) => {
+            html += `<div style="color:${PLAYER_CONFIG[id].color}; margin: 5px; font-size:20px;">
+                ${PLAYER_CONFIG[id].name}: ${scores[id]}
+            </div>`;
+        });
+        
+        document.getElementById('go-standings').innerHTML = html;
+        document.getElementById('go-title').style.color = PLAYER_CONFIG[winnerId].color;
+        document.getElementById('game-over').classList.add('active');
+        return;
+    }
+
+    stateTimer -= dt;
+    
+    if (state === 'WAITING' && stateTimer <= 0) {
+        pickNextColor();
+    } else if (state === 'SHOWING' && stateTimer <= 0) {
+        // Time ran out before anyone pressed
+        canPress = false;
+        
+        if (currentColorId !== 5) {
+            // It was a real color, penalty for the owner
+            scores[currentColorId]--;
+            updateScores();
+            showMsg("TOO SLOW!", PLAYER_CONFIG[currentColorId].color);
+        }
+        
+        state = 'WAITING';
+        shapeEl.className = '';
+        stateTimer = 0.5 + Math.random() * 1.5;
+    }
+
+    requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
