@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hacker Terminal</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        /* CRT Filter */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        #ui-top {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px;
+            border-bottom: 1px solid #0f0;
+            font-size: 20px;
+            background: #001100;
+        }
+
+        #trace-container {
+            flex: 1;
+            margin: 0 20px;
+            border: 1px solid #f00;
+            position: relative;
+            background: rgba(255,0,0,0.1);
+        }
+
+        #trace-bar {
+            height: 100%;
+            background: #f00;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        #trace-text {
+            position: absolute;
+            top: 0; left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            text-shadow: 0 0 5px #000;
+            font-size: 16px;
+            line-height: 24px;
+        }
+
+        #main-area {
+            flex: 1;
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        #console-output {
+            flex: 1;
+            border: 1px solid #0f0;
+            padding: 10px;
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            background: rgba(0, 255, 0, 0.05);
+        }
+
+        .log-line {
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+        
+        #active-nodes {
+            flex: 2;
+            position: relative;
+            border: 1px solid #0f0;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .node {
+            position: absolute;
+            color: #0f0;
+            font-size: 24px;
+            padding: 5px 10px;
+            border: 1px solid #0f0;
+            background: #001100;
+            box-shadow: 0 0 10px #0f0;
+            transition: top 0.1s linear;
+        }
+
+        .node .typed {
+            color: #fff;
+            background: #0f0;
+        }
+
+        #input-area {
+            padding: 20px;
+            border-top: 1px solid #0f0;
+            display: flex;
+            align-items: center;
+            font-size: 24px;
+            background: #001100;
+        }
+
+        #prompt { margin-right: 10px; }
+        
+        #user-input {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: inherit;
+            font-size: 24px;
+            outline: none;
+            width: 100%;
+            text-shadow: 0 0 5px #0f0;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,0,0,0.8);
+            color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            display: none;
+        }
+
+        .game-over h1 { font-size: 64px; text-shadow: 2px 2px #fff; }
+        .game-over p { font-size: 24px; }
+        
+        button {
+            background: #000;
+            color: #f00;
+            border: 2px solid #f00;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 20px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover { background: #f00; color: #000; }
+
+        @media (max-width: 768px) {
+            #main-area { flex-direction: column; }
+            #console-output { display: none; }
+            #ui-top { font-size: 14px; flex-wrap: wrap; }
+            #trace-container { order: 3; width: 100%; margin: 10px 0 0 0; height: 20px; }
+            .node { font-size: 18px; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="ui-top">
+        <div>SCORE: <span id="score">0</span></div>
+        <div id="trace-container">
+            <div id="trace-bar"></div>
+            <div id="trace-text">TRACE TRK: 0%</div>
+        </div>
+        <div>LVL: <span id="level">1</span></div>
+    </div>
+
+    <div id="main-area">
+        <div id="console-output">
+            <!-- Logs -->
+        </div>
+        <div id="active-nodes">
+            <!-- Nodes -->
+        </div>
+    </div>
+
+    <div id="input-area" onclick="document.getElementById('user-input').focus()">
+        <span id="prompt">root@system:~#</span>
+        <input type="text" id="user-input" autocomplete="off" spellcheck="false" autofocus>
+    </div>
+
+    <div class="game-over" id="game-over">
+        <h1>TRACE COMPLETED</h1>
+        <p>System Locked. IP Logged.</p>
+        <p>Final Score: <span id="final-score"></span></p>
+        <button onclick="location.reload()">INITIATE NEW PROXY</button>
+    </div>
+
+    <script>
+        const wordsList = [
+            "admin", "root", "password", "system", "override", "bypass", "proxy", "firewall",
+            "kernel", "socket", "packet", "decrypt", "encrypt", "cipher", "hash", "botnet",
+            "mainframe", "database", "inject", "exploit", "payload", "trojan", "malware",
+            "192.168.1.1", "10.0.0.1", "127.0.0.1", "sudo", "chmod", "bash", "grep"
+        ];
+
+        let score = 0;
+        let level = 1;
+        let trace = 0; // 0 to 100
+        let nodes = [];
+        let isGameOver = false;
+
+        const inputEl = document.getElementById('user-input');
+        const activeNodesEl = document.getElementById('active-nodes');
+        const consoleEl = document.getElementById('console-output');
+        const traceBar = document.getElementById('trace-bar');
+        const traceText = document.getElementById('trace-text');
+        const scoreEl = document.getElementById('score');
+        const levelEl = document.getElementById('level');
+
+        // Prevent input losing focus
+        inputEl.addEventListener('blur', () => { if(!isGameOver) setTimeout(()=>inputEl.focus(), 10); });
+
+        function log(msg) {
+            let div = document.createElement('div');
+            div.className = 'log-line';
+            div.innerText = `[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}`;
+            consoleEl.appendChild(div);
+            if(consoleEl.children.length > 20) consoleEl.removeChild(consoleEl.firstChild);
+        }
+
+        function spawnNode() {
+            if(isGameOver) return;
+            
+            let word = wordsList[Math.floor(Math.random() * wordsList.length)];
+            // Harder words later
+            if(level > 5 && Math.random() > 0.5) {
+                word += Math.floor(Math.random() * 999);
+            }
+
+            let el = document.createElement('div');
+            el.className = 'node';
+            
+            // Random horizontal pos
+            let maxW = activeNodesEl.clientWidth - (word.length * 15 + 20);
+            let x = Math.max(0, Math.floor(Math.random() * maxW));
+            
+            el.style.left = x + 'px';
+            el.style.top = '-50px';
+            
+            el.innerHTML = `<span class="typed"></span><span class="untyped">${word}</span>`;
+            activeNodesEl.appendChild(el);
+
+            nodes.push({
+                el: el,
+                word: word,
+                typed: "",
+                y: -50,
+                speed: 0.5 + (level * 0.2) + Math.random() * 0.5
+            });
+
+            log(`New connection detected: Port ${Math.floor(Math.random()*8000)+80}`);
+        }
+
+        function updateNodes() {
+            if(isGameOver) return;
+
+            let h = activeNodesEl.clientHeight;
+            
+            for(let i = nodes.length - 1; i >= 0; i--) {
+                let n = nodes[i];
+                n.y += n.speed;
+                n.el.style.top = n.y + 'px';
+
+                // Reached bottom
+                if(n.y > h - 40) {
+                    n.el.remove();
+                    nodes.splice(i, 1);
+                    trace += 15; // Penalty
+                    log(`WARNING: Connection ${n.word} breached firewall!`);
+                    checkTrace();
+                }
+            }
+
+            // Passive trace increase
+            trace += 0.05 + (level * 0.01);
+            checkTrace();
+        }
+
+        function checkTrace() {
+            if(trace < 0) trace = 0;
+            if(trace >= 100) {
+                trace = 100;
+                gameOver();
+            }
+            traceBar.style.width = trace + '%';
+            traceText.innerText = `TRACE TRK: ${Math.floor(trace)}%`;
+        }
+
+        inputEl.addEventListener('input', (e) => {
+            let val = inputEl.value.toLowerCase();
+            
+            // Find nodes that match prefix
+            let matched = false;
+            let fullMatch = -1;
+
+            nodes.forEach((n, idx) => {
+                if(n.word.startsWith(val)) {
+                    n.el.innerHTML = `<span class="typed">${val}</span><span class="untyped">${n.word.substring(val.length)}</span>`;
+                    matched = true;
+                    if(val === n.word) fullMatch = idx;
+                } else {
+                    n.el.innerHTML = `<span class="typed"></span><span class="untyped">${n.word}</span>`;
+                }
+            });
+
+            // If typed fully
+            if(fullMatch !== -1) {
+                let n = nodes[fullMatch];
+                n.el.remove();
+                nodes.splice(fullMatch, 1);
+                
+                inputEl.value = "";
+                nodes.forEach(no => {
+                    no.el.innerHTML = `<span class="typed"></span><span class="untyped">${no.word}</span>`;
+                });
+
+                score += 10 * level;
+                trace -= 5;
+                log(`Bypassed node: ${n.word}`);
+                checkLevel();
+            }
+
+            // If mismatch, clear input to force retry (classic typing game mechanic)
+            if(!matched && val.length > 0) {
+                inputEl.value = "";
+                nodes.forEach(no => {
+                    no.el.innerHTML = `<span class="typed"></span><span class="untyped">${no.word}</span>`;
+                });
+                trace += 1; // minor penalty for typos
+            }
+        });
+
+        function checkLevel() {
+            scoreEl.innerText = score;
+            let newLvl = Math.floor(score / 100) + 1;
+            if(newLvl > level) {
+                level = newLvl;
+                levelEl.innerText = level;
+                log(`>>> SYSTEM UPGRADE: LEVEL ${level}`);
+            }
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('game-over').style.display = 'flex';
+            inputEl.blur();
+        }
+
+        // Loops
+        setInterval(() => {
+            if(!isGameOver) spawnNode();
+        }, 2000 - Math.min(1500, level * 100)); // spawns faster
+
+        function loop() {
+            updateNodes();
+            if(!isGameOver) requestAnimationFrame(loop);
+        }
+
+        // Init
+        log("System boot sequence initiated...");
+        log("Connecting to proxy nodes...");
+        setTimeout(() => {
+            inputEl.focus();
+            spawnNode();
+            requestAnimationFrame(loop);
+        }, 1000);
+
+    </script>
+</body>
+</html>

@@ -1,2 +1,329 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: algorithm-visualizer</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>algorithm-visualizer - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Algorithm Visualizer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap');
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #050510;
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            width: 100%;
+            padding: 15px;
+            background: rgba(10, 10, 26, 0.9);
+            border-bottom: 2px solid #bd00ff;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            z-index: 10;
+            box-shadow: 0 0 20px rgba(189, 0, 255, 0.2);
+        }
+
+        h1 { margin: 0; font-size: 24px; color: #bd00ff; text-shadow: 0 0 10px #bd00ff; }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+        }
+
+        button, select {
+            background: transparent;
+            border: 1px solid #00f3ff;
+            color: #00f3ff;
+            padding: 8px 15px;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover, select:hover {
+            background: #00f3ff;
+            color: #000;
+            box-shadow: 0 0 10px #00f3ff;
+        }
+
+        button:disabled {
+            border-color: #555;
+            color: #555;
+            cursor: not-allowed;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        input[type=range] {
+            accent-color: #00f3ff;
+        }
+
+        #visualizer {
+            flex: 1;
+            width: 100%;
+            padding: 20px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .bar {
+            background-color: #00f3ff;
+            width: 20px;
+            border-radius: 2px 2px 0 0;
+            transition: height 0.1s ease, background-color 0.1s ease;
+            box-shadow: 0 0 5px #00f3ff;
+        }
+
+        /* Color States */
+        .bar.comparing { background-color: #ff00ff; box-shadow: 0 0 10px #ff00ff; }
+        .bar.swapping { background-color: #39ff14; box-shadow: 0 0 10px #39ff14; }
+        .bar.sorted { background-color: #fff; box-shadow: 0 0 10px #fff; }
+
+        @media (max-width: 768px) {
+            header { flex-direction: column; }
+            .bar { width: 10px; gap: 1px; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>ALGO_VISUALIZER</h1>
+        
+        <div class="control-group">
+            <label>SIZE:</label>
+            <input type="range" id="size-slider" min="10" max="100" value="30">
+        </div>
+
+        <div class="control-group">
+            <label>SPEED:</label>
+            <input type="range" id="speed-slider" min="1" max="100" value="50">
+        </div>
+
+        <div class="control-group">
+            <select id="algo-select">
+                <option value="bubble">Bubble Sort</option>
+                <option value="insertion">Insertion Sort</option>
+                <option value="selection">Selection Sort</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <button id="btn-generate" onclick="generateArray()">Randomize</button>
+            <button id="btn-sort" onclick="startSort()">Sort</button>
+        </div>
+    </header>
+
+    <div id="visualizer"></div>
+
+    <script>
+        const visualizer = document.getElementById('visualizer');
+        const sizeSlider = document.getElementById('size-slider');
+        const speedSlider = document.getElementById('speed-slider');
+        const algoSelect = document.getElementById('algo-select');
+        const btnGen = document.getElementById('btn-generate');
+        const btnSort = document.getElementById('btn-sort');
+
+        let array = [];
+        let bars = [];
+        let isSorting = false;
+        let abortController = null;
+
+        function generateArray() {
+            if(isSorting) {
+                if(abortController) abortController.abort();
+                isSorting = false;
+                setUIState(false);
+            }
+            
+            let size = parseInt(sizeSlider.value);
+            array = [];
+            visualizer.innerHTML = '';
+            bars = [];
+
+            // Compute dynamic max height based on container
+            let maxH = visualizer.clientHeight - 20;
+
+            for(let i=0; i<size; i++) {
+                // Random value between 10 and maxH
+                let val = Math.floor(Math.random() * (maxH - 10)) + 10;
+                array.push(val);
+                
+                let bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = val + 'px';
+                
+                // Dynamic width
+                let w = Math.max(2, Math.floor((visualizer.clientWidth - 40) / size) - 2);
+                bar.style.width = w + 'px';
+
+                visualizer.appendChild(bar);
+                bars.push(bar);
+            }
+        }
+
+        window.addEventListener('resize', generateArray);
+
+        sizeSlider.addEventListener('input', generateArray);
+
+        function setUIState(sorting) {
+            isSorting = sorting;
+            sizeSlider.disabled = sorting;
+            algoSelect.disabled = sorting;
+            btnSort.disabled = sorting;
+        }
+
+        function sleep(ms, signal) {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(resolve, ms);
+                if(signal) {
+                    signal.addEventListener('abort', () => {
+                        clearTimeout(timeout);
+                        reject(new Error('Aborted'));
+                    });
+                }
+            });
+        }
+
+        function getDelay() {
+            let val = parseInt(speedSlider.value);
+            // Invert scale: 100 speed = 5ms, 1 speed = 200ms
+            return Math.max(5, 205 - (val * 2));
+        }
+
+        async function startSort() {
+            setUIState(true);
+            abortController = new AbortController();
+            let signal = abortController.signal;
+
+            try {
+                let algo = algoSelect.value;
+                if(algo === 'bubble') await bubbleSort(signal);
+                else if(algo === 'insertion') await insertionSort(signal);
+                else if(algo === 'selection') await selectionSort(signal);
+                
+                // Mark all sorted
+                for(let i=0; i<bars.length; i++) {
+                    bars[i].className = 'bar sorted';
+                    await sleep(10, signal);
+                }
+            } catch(e) {
+                console.log("Sort aborted");
+            } finally {
+                setUIState(false);
+            }
+        }
+
+        // --- ALGORITHMS ---
+
+        async function swap(i, j) {
+            let temp = array[i];
+            array[i] = array[j];
+            array[j] = temp;
+            
+            bars[i].style.height = array[i] + 'px';
+            bars[j].style.height = array[j] + 'px';
+        }
+
+        async function bubbleSort(signal) {
+            for(let i=0; i<array.length-1; i++) {
+                for(let j=0; j<array.length-i-1; j++) {
+                    bars[j].className = 'bar comparing';
+                    bars[j+1].className = 'bar comparing';
+                    
+                    await sleep(getDelay(), signal);
+                    
+                    if(array[j] > array[j+1]) {
+                        bars[j].className = 'bar swapping';
+                        bars[j+1].className = 'bar swapping';
+                        await swap(j, j+1);
+                        await sleep(getDelay(), signal);
+                    }
+                    
+                    bars[j].className = 'bar';
+                    bars[j+1].className = 'bar';
+                }
+                bars[array.length-1-i].className = 'bar sorted';
+            }
+            bars[0].className = 'bar sorted';
+        }
+
+        async function insertionSort(signal) {
+            for(let i=1; i<array.length; i++) {
+                let key = array[i];
+                let j = i - 1;
+                
+                bars[i].className = 'bar comparing';
+                await sleep(getDelay(), signal);
+                
+                while(j >= 0 && array[j] > key) {
+                    bars[j].className = 'bar comparing';
+                    bars[j+1].className = 'bar swapping';
+                    
+                    array[j+1] = array[j];
+                    bars[j+1].style.height = array[j+1] + 'px';
+                    
+                    await sleep(getDelay(), signal);
+                    
+                    bars[j].className = 'bar';
+                    bars[j+1].className = 'bar';
+                    j--;
+                }
+                array[j+1] = key;
+                bars[j+1].style.height = array[j+1] + 'px';
+                bars[i].className = 'bar';
+            }
+        }
+
+        async function selectionSort(signal) {
+            for(let i=0; i<array.length; i++) {
+                let minIdx = i;
+                bars[minIdx].className = 'bar swapping'; // highlight current min
+                
+                for(let j=i+1; j<array.length; j++) {
+                    bars[j].className = 'bar comparing';
+                    await sleep(getDelay(), signal);
+                    
+                    if(array[j] < array[minIdx]) {
+                        bars[minIdx].className = 'bar';
+                        minIdx = j;
+                        bars[minIdx].className = 'bar swapping';
+                    } else {
+                        bars[j].className = 'bar';
+                    }
+                }
+                
+                if(minIdx !== i) {
+                    await swap(i, minIdx);
+                }
+                bars[minIdx].className = 'bar';
+                bars[i].className = 'bar sorted';
+            }
+        }
+
+        // Init
+        setTimeout(generateArray, 100);
+
+    </script>
+</body>
+</html>

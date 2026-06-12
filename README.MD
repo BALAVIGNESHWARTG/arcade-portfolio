@@ -186,13 +186,13 @@ Vector math and target tracking.
 
 Creative coding and unusual mechanics.
 
-[ ] ASCII Dungeon
+[x] ASCII Dungeon (Completed)
 
 [ ] Neon Matrix Run
 
 [ ] Glitch Runner
 
-[ ] Hacker Terminal Game
+[x] Hacker Terminal Game (Completed)
 
 [ ] Time Loop Puzzle
 
@@ -200,7 +200,7 @@ Creative coding and unusual mechanics.
 
 [x] Neon Pinball (Completed)
 
-[ ] AI vs Player Snake
+[x] AI vs Player Snake (Completed)
 
 [ ] Procedural Maze
 
@@ -244,11 +244,11 @@ Simulation, economy, and autonomous systems.
 
 [ ] AI Training Game
 
-[ ] Neural Maze
+[x] Neural Maze (Completed)
 
 [ ] Genetic Snake
 
-[ ] Algorithm Visualizer
+[x] Algorithm Visualizer (Completed)
 
 [x] Physics Sandbox (Completed)
 

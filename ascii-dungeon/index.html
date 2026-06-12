@@ -1,2 +1,433 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: ascii-dungeon</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>ascii-dungeon - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ASCII Dungeon</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #000;
+            color: #0f0;
+            font-family: 'VT323', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        /* CRT Effects */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            #main-container { flex-direction: column; padding: 10px; }
+        }
+
+        #game-area {
+            flex: 2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid #0f0;
+            padding: 10px;
+            background: #001100;
+        }
+
+        #map-display {
+            font-size: 20px;
+            line-height: 1;
+            letter-spacing: 2px;
+            white-space: pre;
+        }
+
+        @media (max-width: 768px) {
+            #map-display { font-size: 14px; letter-spacing: 1px; }
+        }
+
+        #ui-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border: 2px solid #0f0;
+            padding: 15px;
+            background: #001100;
+            min-width: 250px;
+        }
+
+        @media (max-width: 768px) {
+            #ui-panel { flex: none; height: 150px; }
+        }
+
+        .title {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px #0f0;
+        }
+
+        .stat-box {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        #log-box {
+            flex: 1;
+            margin-top: 20px;
+            border-top: 1px solid #0f0;
+            padding-top: 10px;
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: column-reverse; /* Newest logs at bottom visually, but technically top of list */
+        }
+
+        .log-entry {
+            font-size: 18px;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+        .log-entry:first-child {
+            opacity: 1;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 5px #0f0;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            display: none;
+            width: 100%;
+            padding: 10px;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        @media (max-width: 768px) {
+            #mobile-controls { display: grid; }
+        }
+
+        .d-btn {
+            background: rgba(0,255,0,0.1);
+            border: 1px solid #0f0;
+            color: #0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            padding: 10px 0;
+            cursor: pointer;
+        }
+        .d-btn:active { background: rgba(0,255,0,0.4); }
+        
+        #btn-up { grid-column: 2; grid-row: 1; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-down { grid-column: 2; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
+
+    </style>
+</head>
+<body>
+
+    <div id="main-container">
+        <div id="game-area">
+            <div id="map-display"></div>
+        </div>
+
+        <div id="ui-panel">
+            <div class="title">ASCII CRAWL</div>
+            <div class="stat-box">HP: <span id="stat-hp">20/20</span></div>
+            <div class="stat-box">ATK: <span id="stat-atk">2</span></div>
+            <div class="stat-box">FLOOR: <span id="stat-floor">1</span></div>
+            <div id="log-box"></div>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="d-btn" id="btn-up">W</div>
+        <div class="d-btn" id="btn-left">A</div>
+        <div class="d-btn" id="btn-down">S</div>
+        <div class="d-btn" id="btn-right">D</div>
+    </div>
+
+    <script>
+        // Constants
+        const MAP_W = 40;
+        const MAP_H = 20;
+        const TILE_WALL = '#';
+        const TILE_FLOOR = '.';
+        const TILE_DOOR = '+';
+        const TILE_EXIT = '>';
+
+        const CHAR_PLAYER = '@';
+        const CHAR_ENEMY = 'E';
+        const CHAR_POTION = '♥';
+
+        // State
+        let map = [];
+        let player = { x: 0, y: 0, hp: 20, maxHp: 20, atk: 2 };
+        let enemies = [];
+        let items = [];
+        let floor = 1;
+        let logs = [];
+
+        // DOM
+        const mapEl = document.getElementById('map-display');
+        const hpEl = document.getElementById('stat-hp');
+        const atkEl = document.getElementById('stat-atk');
+        const floorEl = document.getElementById('stat-floor');
+        const logBox = document.getElementById('log-box');
+
+        function log(msg) {
+            logs.unshift(msg);
+            if (logs.length > 5) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            logBox.innerHTML = '';
+            logs.forEach(l => {
+                let div = document.createElement('div');
+                div.className = 'log-entry';
+                div.innerText = l;
+                logBox.appendChild(div);
+            });
+        }
+
+        function initLevel() {
+            // Fill with walls
+            map = Array.from({length: MAP_H}, () => Array(MAP_W).fill(TILE_WALL));
+            enemies = [];
+            items = [];
+
+            // Generate BSP or simple random rooms
+            let rooms = [];
+            for (let i = 0; i < 15; i++) {
+                let rw = Math.floor(Math.random() * 6) + 3;
+                let rh = Math.floor(Math.random() * 5) + 3;
+                let rx = Math.floor(Math.random() * (MAP_W - rw - 2)) + 1;
+                let ry = Math.floor(Math.random() * (MAP_H - rh - 2)) + 1;
+
+                let overlap = false;
+                for (let r of rooms) {
+                    if (rx < r.x + r.w && rx + rw > r.x && ry < r.y + r.h && ry + rh > r.y) {
+                        overlap = true; break;
+                    }
+                }
+                
+                if (!overlap) {
+                    rooms.push({x: rx, y: ry, w: rw, h: rh});
+                    // Carve
+                    for(let y = ry; y < ry+rh; y++) {
+                        for(let x = rx; x < rx+rw; x++) {
+                            map[y][x] = TILE_FLOOR;
+                        }
+                    }
+                }
+            }
+
+            // Connect rooms with corridors
+            for (let i = 0; i < rooms.length - 1; i++) {
+                let r1 = rooms[i];
+                let r2 = rooms[i+1];
+                let c1 = { x: Math.floor(r1.x + r1.w/2), y: Math.floor(r1.y + r1.h/2) };
+                let c2 = { x: Math.floor(r2.x + r2.w/2), y: Math.floor(r2.y + r2.h/2) };
+                
+                // Horizontal then Vertical
+                let x = c1.x; let y = c1.y;
+                while (x !== c2.x) { map[y][x] = TILE_FLOOR; x += Math.sign(c2.x - x); }
+                while (y !== c2.y) { map[y][x] = TILE_FLOOR; y += Math.sign(c2.y - y); }
+            }
+
+            // Place Player in room 0
+            player.x = rooms[0].x + 1;
+            player.y = rooms[0].y + 1;
+
+            // Place Exit in last room
+            let lr = rooms[rooms.length-1];
+            map[lr.y+1][lr.x+1] = TILE_EXIT;
+
+            // Place Enemies and items in other rooms
+            for (let i = 1; i < rooms.length; i++) {
+                let r = rooms[i];
+                if (Math.random() > 0.3) {
+                    enemies.push({
+                        x: r.x + Math.floor(Math.random() * (r.w-2)) + 1,
+                        y: r.y + Math.floor(Math.random() * (r.h-2)) + 1,
+                        hp: 3 + Math.floor(floor/2),
+                        atk: 1 + Math.floor(floor/3)
+                    });
+                }
+                if (Math.random() > 0.7) {
+                    items.push({
+                        x: r.x + Math.floor(Math.random() * (r.w-2)) + 1,
+                        y: r.y + Math.floor(Math.random() * (r.h-2)) + 1,
+                        type: 'hp'
+                    });
+                }
+            }
+
+            floorEl.innerText = floor;
+            updateUI();
+            log(`Entered floor ${floor}.`);
+            render();
+        }
+
+        function updateUI() {
+            hpEl.innerText = `${player.hp}/${player.maxHp}`;
+            if(player.hp <= 5) hpEl.style.color = 'red';
+            else hpEl.style.color = '#0f0';
+            atkEl.innerText = player.atk;
+        }
+
+        function render() {
+            let output = "";
+            for (let y = 0; y < MAP_H; y++) {
+                for (let x = 0; x < MAP_W; x++) {
+                    let isPlayer = (player.x === x && player.y === y);
+                    let enemy = enemies.find(e => e.x === x && e.y === y && e.hp > 0);
+                    let item = items.find(i => i.x === x && i.y === y);
+
+                    if (isPlayer) {
+                        output += `<span style="color:#fff; text-shadow:0 0 5px #fff;">${CHAR_PLAYER}</span>`;
+                    } else if (enemy) {
+                        output += `<span style="color:#f00;">${CHAR_ENEMY}</span>`;
+                    } else if (item) {
+                        output += `<span style="color:#ff00ff;">${CHAR_POTION}</span>`;
+                    } else {
+                        let tile = map[y][x];
+                        if (tile === TILE_WALL) output += `<span style="color:#333;">${tile}</span>`;
+                        else if (tile === TILE_EXIT) output += `<span style="color:#ff0;">${tile}</span>`;
+                        else output += tile;
+                    }
+                }
+                output += "\n";
+            }
+            mapEl.innerHTML = output;
+        }
+
+        function movePlayer(dx, dy) {
+            if (player.hp <= 0) return;
+
+            let nx = player.x + dx;
+            let ny = player.y + dy;
+
+            if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) return;
+            if (map[ny][nx] === TILE_WALL) return;
+
+            // Combat
+            let enemy = enemies.find(e => e.x === nx && e.y === ny && e.hp > 0);
+            if (enemy) {
+                // Attack
+                enemy.hp -= player.atk;
+                if (enemy.hp <= 0) {
+                    log(`You destroyed the enemy!`);
+                    // Random drop
+                    if(Math.random() > 0.8) {
+                        player.atk++;
+                        log(`You found a weapon upgrade! ATK=${player.atk}`);
+                    }
+                } else {
+                    log(`You hit enemy for ${player.atk} dmg.`);
+                }
+            } else {
+                // Move
+                player.x = nx;
+                player.y = ny;
+
+                // Pickups
+                let itemIdx = items.findIndex(i => i.x === nx && i.y === ny);
+                if (itemIdx !== -1) {
+                    player.hp = Math.min(player.maxHp, player.hp + 5);
+                    log(`Drank potion. HP restored.`);
+                    items.splice(itemIdx, 1);
+                }
+
+                // Exit
+                if (map[ny][nx] === TILE_EXIT) {
+                    floor++;
+                    player.maxHp += 2;
+                    player.hp = player.maxHp;
+                    initLevel();
+                    return;
+                }
+            }
+
+            processTurn();
+        }
+
+        function processTurn() {
+            // Enemy turn
+            enemies.forEach(e => {
+                if(e.hp <= 0) return;
+                
+                // Simple AI: Move towards player if close
+                let dist = Math.abs(e.x - player.x) + Math.abs(e.y - player.y);
+                if (dist === 1) {
+                    // Attack
+                    player.hp -= e.atk;
+                    log(`Enemy hits you for ${e.atk} dmg!`);
+                } else if (dist < 6) {
+                    // Move
+                    let dx = Math.sign(player.x - e.x);
+                    let dy = Math.sign(player.y - e.y);
+                    
+                    // Try X
+                    if (dx !== 0 && map[e.y][e.x + dx] !== TILE_WALL && !enemies.some(en => en !== e && en.x === e.x+dx && en.y === e.y)) {
+                        e.x += dx;
+                    } 
+                    // Try Y
+                    else if (dy !== 0 && map[e.y + dy][e.x] !== TILE_WALL && !enemies.some(en => en !== e && en.x === e.x && en.y === e.y+dy)) {
+                        e.y += dy;
+                    }
+                }
+            });
+
+            updateUI();
+            render();
+
+            if (player.hp <= 0) {
+                log(`YOU DIED on floor ${floor}.`);
+                mapEl.innerHTML = `<div style="text-align:center; color:red; margin-top:20%;"><h1>GAME OVER</h1><br>Refresh to restart.</div>`;
+            }
+        }
+
+        // Input
+        window.addEventListener('keydown', e => {
+            if(['ArrowUp', 'w', 'W'].includes(e.key)) movePlayer(0, -1);
+            if(['ArrowDown', 's', 'S'].includes(e.key)) movePlayer(0, 1);
+            if(['ArrowLeft', 'a', 'A'].includes(e.key)) movePlayer(-1, 0);
+            if(['ArrowRight', 'd', 'D'].includes(e.key)) movePlayer(1, 0);
+        });
+
+        document.getElementById('btn-up').onclick = () => movePlayer(0, -1);
+        document.getElementById('btn-down').onclick = () => movePlayer(0, 1);
+        document.getElementById('btn-left').onclick = () => movePlayer(-1, 0);
+        document.getElementById('btn-right').onclick = () => movePlayer(1, 0);
+
+        // Start
+        initLevel();
+
+    </script>
+</body>
+</html>

@@ -1,2 +1,315 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: neural-maze</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>neural-maze - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neural Maze</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #030811;
+            color: #00f3ff;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            /* Blueprint grid background */
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        header {
+            width: 100%;
+            padding: 15px;
+            text-align: center;
+            background: rgba(3, 8, 17, 0.9);
+            border-bottom: 1px solid #00f3ff;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 5px #00f3ff;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        button {
+            background: transparent;
+            border: 1px solid #00f3ff;
+            color: #00f3ff;
+            padding: 8px 15px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover { background: #00f3ff; color: #000; box-shadow: 0 0 10px #00f3ff; }
+
+        #canvas-wrapper {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        canvas {
+            background: rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 20px rgba(0, 243, 255, 0.1);
+            border: 2px solid #00f3ff;
+            cursor: crosshair;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 20px;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid #00f3ff;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>NEURAL_MAZE_SOLVER v1.0</h1>
+        <div class="controls">
+            <button onclick="generateMaze()">1. Generate</button>
+            <button onclick="startSearch()">2. Search (BFS)</button>
+        </div>
+    </header>
+
+    <div id="canvas-wrapper">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+    </div>
+    
+    <div id="status">Click anywhere in the maze to set the Target!</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+
+        const COLS = 31; // Must be odd
+        const ROWS = 31; // Must be odd
+        let TILE_W, TILE_H;
+
+        const WALL = 0;
+        const PATH = 1;
+        const VISITED = 2;
+        const SOLUTION = 3;
+
+        let grid = [];
+        let target = {x: Math.floor(COLS/2), y: Math.floor(ROWS/2)};
+        let start = {x: 1, y: 1};
+        
+        let searchQueue = [];
+        let searchInterval = null;
+        let parentMap = {};
+
+        function resize() {
+            let wrap = document.getElementById('canvas-wrapper');
+            let size = Math.min(wrap.clientWidth, wrap.clientHeight) - 20;
+            canvas.style.width = size + 'px';
+            canvas.style.height = size + 'px';
+            TILE_W = canvas.width / COLS;
+            TILE_H = canvas.height / ROWS;
+            draw();
+        }
+        window.addEventListener('resize', resize);
+
+        // --- Maze Generation (Recursive Backtracker) ---
+        function generateMaze() {
+            if(searchInterval) clearInterval(searchInterval);
+            grid = Array.from({length: ROWS}, () => Array(COLS).fill(WALL));
+            
+            let stack = [];
+            let curr = {x: 1, y: 1};
+            grid[curr.y][curr.x] = PATH;
+            stack.push(curr);
+
+            while(stack.length > 0) {
+                curr = stack[stack.length - 1];
+                let neighbors = [];
+                let dirs = [[0,-2], [0,2], [-2,0], [2,0]];
+                
+                for(let d of dirs) {
+                    let nx = curr.x + d[0];
+                    let ny = curr.y + d[1];
+                    if(nx > 0 && nx < COLS-1 && ny > 0 && ny < ROWS-1) {
+                        if(grid[ny][nx] === WALL) {
+                            neighbors.push({nx, ny, mx: curr.x + d[0]/2, my: curr.y + d[1]/2});
+                        }
+                    }
+                }
+
+                if(neighbors.length > 0) {
+                    let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    grid[next.my][next.mx] = PATH;
+                    grid[next.ny][next.nx] = PATH;
+                    stack.push({x: next.nx, y: next.ny});
+                } else {
+                    stack.pop();
+                }
+            }
+            
+            // Ensure target is on a path
+            if(grid[target.y][target.x] === WALL) {
+                grid[target.y][target.x] = PATH;
+            }
+
+            statusEl.innerText = "Maze generated. Click to set target, then press Search.";
+            draw();
+        }
+
+        // --- BFS Search ---
+        function startSearch() {
+            if(searchInterval) clearInterval(searchInterval);
+            
+            // Reset visited states
+            for(let y=0; y<ROWS; y++) {
+                for(let x=0; x<COLS; x++) {
+                    if(grid[y][x] === VISITED || grid[y][x] === SOLUTION) grid[y][x] = PATH;
+                }
+            }
+
+            searchQueue = [start];
+            parentMap = {};
+            grid[start.y][start.x] = VISITED;
+            
+            statusEl.innerText = "Searching...";
+
+            // Visualize
+            searchInterval = setInterval(searchStep, 20); // 50fps
+        }
+
+        function searchStep() {
+            // Process a few nodes per frame to speed it up
+            for(let steps = 0; steps < 5; steps++) {
+                if(searchQueue.length === 0) {
+                    clearInterval(searchInterval);
+                    statusEl.innerText = "Target unreachable.";
+                    return;
+                }
+
+                let curr = searchQueue.shift();
+
+                if(curr.x === target.x && curr.y === target.y) {
+                    clearInterval(searchInterval);
+                    statusEl.innerText = "Target acquired! Reconstructing path...";
+                    reconstructPath(curr);
+                    return;
+                }
+
+                let dirs = [[0,-1], [0,1], [-1,0], [1,0]];
+                for(let d of dirs) {
+                    let nx = curr.x + d[0];
+                    let ny = curr.y + d[1];
+                    if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+                        if(grid[ny][nx] === PATH) {
+                            grid[ny][nx] = VISITED;
+                            parentMap[`${nx},${ny}`] = curr;
+                            searchQueue.push({x: nx, y: ny});
+                        }
+                    }
+                }
+            }
+            draw();
+        }
+
+        function reconstructPath(curr) {
+            let path = [];
+            while(curr) {
+                path.push(curr);
+                grid[curr.y][curr.x] = SOLUTION;
+                curr = parentMap[`${curr.x},${curr.y}`];
+            }
+            statusEl.innerText = `Path found. Length: ${path.length}`;
+            draw();
+        }
+
+        // --- Interaction ---
+        canvas.addEventListener('mousedown', (e) => {
+            let rect = canvas.getBoundingClientRect();
+            let scaleX = canvas.width / rect.width;
+            let scaleY = canvas.height / rect.height;
+            let x = Math.floor((e.clientX - rect.left) * scaleX / TILE_W);
+            let y = Math.floor((e.clientY - rect.top) * scaleY / TILE_H);
+            
+            if(x > 0 && x < COLS-1 && y > 0 && y < ROWS-1) {
+                if(grid[y][x] !== WALL) {
+                    target = {x, y};
+                    // Reset visuals if needed
+                    for(let i=0; i<ROWS; i++) {
+                        for(let j=0; j<COLS; j++) {
+                            if(grid[i][j] === VISITED || grid[i][j] === SOLUTION) grid[i][j] = PATH;
+                        }
+                    }
+                    draw();
+                }
+            }
+        });
+
+        // --- Render ---
+        function draw() {
+            if(!TILE_W) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Cells
+            for(let y=0; y<ROWS; y++) {
+                for(let x=0; x<COLS; x++) {
+                    let val = grid[y][x];
+                    if(val === WALL) {
+                        ctx.fillStyle = 'rgba(0, 243, 255, 0.2)';
+                        ctx.fillRect(x*TILE_W, y*TILE_H, TILE_W, TILE_H);
+                    } else if (val === VISITED) {
+                        ctx.fillStyle = 'rgba(255, 0, 255, 0.4)';
+                        ctx.fillRect(x*TILE_W, y*TILE_H, TILE_W, TILE_H);
+                    } else if (val === SOLUTION) {
+                        ctx.fillStyle = '#00f3ff';
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = '#00f3ff';
+                        ctx.fillRect(x*TILE_W + 2, y*TILE_H + 2, TILE_W - 4, TILE_H - 4);
+                        ctx.shadowBlur = 0;
+                    }
+                }
+            }
+
+            // Draw Start
+            ctx.fillStyle = '#39ff14';
+            ctx.fillRect(start.x*TILE_W + 2, start.y*TILE_H + 2, TILE_W - 4, TILE_H - 4);
+
+            // Draw Target
+            ctx.fillStyle = '#ff003c';
+            ctx.beginPath();
+            ctx.arc(target.x*TILE_W + TILE_W/2, target.y*TILE_H + TILE_H/2, TILE_W/2.5, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // Init
+        generateMaze();
+        setTimeout(resize, 100);
+
+    </script>
+</body>
+</html>
