@@ -1,2 +1,464 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: shadow-platformer</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>shadow-platformer - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shadow Platformer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Cinzel', serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #game-container {
+            flex: 1;
+            width: 100%;
+            position: relative;
+            background: #1a1a2e;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0; left: 0;
+        }
+
+        #lightCanvas { z-index: 5; pointer-events: none;}
+        #uiCanvas { z-index: 10; pointer-events: none;}
+
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 20;
+        }
+
+        #start-screen, #game-over, #win-screen { display: none; }
+
+        .overlay h1 { font-size: 50px; margin-bottom: 10px; color: #e94560; text-shadow: 0 0 20px #e94560; }
+        .overlay p { font-size: 20px; margin-bottom: 30px; color: #ccc; }
+
+        button {
+            background: transparent;
+            border: 2px solid #e94560;
+            color: #e94560;
+            font-family: inherit;
+            padding: 15px 40px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #e94560;
+            color: #fff;
+            box-shadow: 0 0 20px #e94560;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            display: none;
+            width: 100%;
+            padding: 20px;
+            justify-content: space-between;
+            background: #000;
+            z-index: 15;
+            border-top: 1px solid #333;
+        }
+        
+        .d-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #555;
+            color: #fff;
+            width: 70px; height: 70px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 30px; border-radius: 50%;
+        }
+        .d-btn:active { background: rgba(255,255,255,0.3); }
+
+        .left-group { display: flex; gap: 15px; }
+
+        @media (max-width: 768px) {
+            #mobile-controls { display: flex; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Renders the actual level -->
+        <canvas id="gameCanvas"></canvas>
+        <!-- Renders the darkness and light cutouts -->
+        <canvas id="lightCanvas"></canvas>
+        <!-- Renders UI on top -->
+        <canvas id="uiCanvas"></canvas>
+        
+        <div class="overlay" id="start-screen" style="display:flex;">
+            <h1>SHADOW FALL</h1>
+            <p>Navigate the darkness. Find the light.</p>
+            <button onclick="startGame()">ENTER</button>
+        </div>
+
+        <div class="overlay" id="game-over">
+            <h1>CONSUMED</h1>
+            <p>You fell into the abyss or hit a trap.</p>
+            <button onclick="startGame()">RETRY</button>
+        </div>
+
+        <div class="overlay" id="win-screen">
+            <h1 style="color:#fff; text-shadow:0 0 20px #fff;">ASCENDED</h1>
+            <p>You found the exit.</p>
+            <button onclick="startGame()">REPLAY</button>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="left-group">
+            <div class="d-btn" id="btn-left">◀</div>
+            <div class="d-btn" id="btn-right">▶</div>
+        </div>
+        <div class="d-btn" id="btn-up">▲</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const lightCanvas = document.getElementById('lightCanvas');
+        const lightCtx = lightCanvas.getContext('2d');
+        const uiCanvas = document.getElementById('uiCanvas');
+        const uiCtx = uiCanvas.getContext('2d');
+        
+        let animationId;
+        let isGameRunning = false;
+        
+        const keys = { left: false, right: false, up: false };
+
+        // Camera
+        let camera = { x: 0, y: 0 };
+
+        // Player
+        const player = {
+            x: 100, y: 100,
+            w: 24, h: 36,
+            vx: 0, vy: 0,
+            speed: 5,
+            gravity: 0.6,
+            jumpPower: -12,
+            grounded: false,
+            lightRadius: 150
+        };
+
+        // Level Design (Tile-based approx)
+        const level = {
+            width: 3000,
+            height: 1000
+        };
+        let platforms = [];
+        let traps = [];
+        let exitDoor = { x: 2800, y: 0, w: 40, h: 60 };
+
+        function resizeCanvas() {
+            let container = document.getElementById('game-container');
+            let w = container.clientWidth;
+            let h = container.clientHeight;
+            
+            canvas.width = w; canvas.height = h;
+            lightCanvas.width = w; lightCanvas.height = h;
+            uiCanvas.width = w; uiCanvas.height = h;
+            
+            if(!isGameRunning) initLevel();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function initLevel() {
+            platforms = [];
+            traps = [];
+            
+            // Generate a linear level
+            let curX = 0;
+            let curY = level.height - 200;
+            
+            // Start platform
+            platforms.push({ x: 0, y: curY, w: 400, h: 400 });
+
+            while(curX < level.width - 600) {
+                curX += 400 + Math.random() * 150; // Gap
+                let w = 200 + Math.random() * 300;
+                curY += (Math.random() - 0.5) * 200;
+                if(curY > level.height - 100) curY = level.height - 100;
+                if(curY < 300) curY = 300;
+
+                platforms.push({ x: curX, y: curY, w: w, h: 400 });
+
+                // Add trap sometimes
+                if(Math.random() > 0.5 && w > 100) {
+                    traps.push({
+                        x: curX + w/2 - 20,
+                        y: curY - 20,
+                        w: 40, h: 20
+                    });
+                }
+            }
+
+            // End platform
+            exitDoor.x = level.width - 200;
+            exitDoor.y = curY - exitDoor.h;
+            platforms.push({ x: exitDoor.x - 100, y: curY, w: 400, h: 400 });
+        }
+
+        function update() {
+            // Player movement
+            if(keys.left) player.vx = -player.speed;
+            else if(keys.right) player.vx = player.speed;
+            else player.vx = 0;
+
+            if(keys.up && player.grounded) {
+                player.vy = player.jumpPower;
+                player.grounded = false;
+            }
+
+            player.vy += player.gravity;
+            if(player.vy > 15) player.vy = 15;
+
+            // X movement & collision
+            player.x += player.vx;
+            if(player.x < 0) player.x = 0;
+
+            for(let p of platforms) {
+                if(player.x < p.x + p.w && player.x + player.w > p.x &&
+                   player.y < p.y + p.h && player.y + player.h > p.y) {
+                    
+                    if(player.vx > 0) player.x = p.x - player.w;
+                    else if(player.vx < 0) player.x = p.x + p.w;
+                }
+            }
+
+            // Y movement & collision
+            player.y += player.vy;
+            player.grounded = false;
+
+            for(let p of platforms) {
+                if(player.x < p.x + p.w && player.x + player.w > p.x &&
+                   player.y < p.y + p.h && player.y + player.h > p.y) {
+                    
+                    if(player.vy > 0) {
+                        player.y = p.y - player.h;
+                        player.vy = 0;
+                        player.grounded = true;
+                    } 
+                    else if(player.vy < 0) {
+                        player.y = p.y + p.h;
+                        player.vy = 0;
+                    }
+                }
+            }
+
+            // Trap Collision
+            for(let t of traps) {
+                if(player.x < t.x + t.w - 5 && player.x + player.w > t.x + 5 &&
+                   player.y < t.y + t.h && player.y + player.h > t.y + 5) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Exit Collision
+            if(player.x < exitDoor.x + exitDoor.w && player.x + player.w > exitDoor.x &&
+               player.y < exitDoor.y + exitDoor.h && player.y + player.h > exitDoor.y) {
+                gameWin();
+                return;
+            }
+
+            // Death by falling
+            if(player.y > level.height + 200) {
+                gameOver();
+                return;
+            }
+
+            // Camera follow
+            camera.x += (player.x - canvas.width/2 - camera.x) * 0.1;
+            camera.y += (player.y - canvas.height/2 - camera.y) * 0.1;
+            
+            // Constrain camera
+            if(camera.x < 0) camera.x = 0;
+            if(camera.x > level.width - canvas.width) camera.x = level.width - canvas.width;
+        }
+
+        function drawLevel() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+
+            // Draw Background texture (very subtle)
+            ctx.fillStyle = '#16213e';
+            ctx.fillRect(0,0,level.width, level.height);
+
+            // Platforms (Brick color)
+            ctx.fillStyle = '#4a4e69';
+            ctx.strokeStyle = '#22223b';
+            ctx.lineWidth = 4;
+            platforms.forEach(p => {
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+                ctx.strokeRect(p.x, p.y, p.w, p.h);
+            });
+
+            // Traps (Spikes)
+            ctx.fillStyle = '#e94560';
+            traps.forEach(t => {
+                ctx.beginPath();
+                ctx.moveTo(t.x, t.y + t.h);
+                ctx.lineTo(t.x + t.w/2, t.y);
+                ctx.lineTo(t.x + t.w, t.y + t.h);
+                ctx.fill();
+            });
+
+            // Exit
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#fff';
+            ctx.fillRect(exitDoor.x, exitDoor.y, exitDoor.w, exitDoor.h);
+            ctx.shadowBlur = 0;
+
+            // Player (White silhouette)
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+
+            ctx.restore();
+        }
+
+        function drawLighting() {
+            // Fill entirely with black
+            lightCtx.globalCompositeOperation = 'source-over';
+            lightCtx.fillStyle = '#000'; // Pure black darkness
+            lightCtx.fillRect(0, 0, lightCanvas.width, lightCanvas.height);
+
+            // Cut out light around player
+            lightCtx.globalCompositeOperation = 'destination-out';
+            
+            let px = player.x + player.w/2 - camera.x;
+            let py = player.y + player.h/2 - camera.y;
+
+            let gradient = lightCtx.createRadialGradient(px, py, 0, px, py, player.lightRadius);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+            lightCtx.fillStyle = gradient;
+            lightCtx.beginPath();
+            lightCtx.arc(px, py, player.lightRadius, 0, Math.PI * 2);
+            lightCtx.fill();
+
+            // Cut out light around exit door
+            let ex = exitDoor.x + exitDoor.w/2 - camera.x;
+            let ey = exitDoor.y + exitDoor.h/2 - camera.y;
+            
+            let exitGrad = lightCtx.createRadialGradient(ex, ey, 0, ex, ey, 200);
+            exitGrad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            exitGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            lightCtx.fillStyle = exitGrad;
+            lightCtx.beginPath();
+            lightCtx.arc(ex, ey, 200, 0, Math.PI * 2);
+            lightCtx.fill();
+        }
+
+        function drawUI() {
+            uiCtx.clearRect(0,0, uiCanvas.width, uiCanvas.height);
+            // Example: tiny minimap or progress
+            let progress = player.x / level.width;
+            uiCtx.fillStyle = 'rgba(255,255,255,0.3)';
+            uiCtx.fillRect(20, 20, 200, 5);
+            uiCtx.fillStyle = '#fff';
+            uiCtx.fillRect(20, 20, 200 * progress, 5);
+        }
+
+        function gameLoop() {
+            if(!isGameRunning) return;
+            update();
+            drawLevel();
+            drawLighting();
+            drawUI();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('win-screen').style.display = 'none';
+            
+            resizeCanvas();
+            player.x = 100;
+            player.y = level.height - 300;
+            player.vx = 0;
+            player.vy = 0;
+            camera.x = 0;
+            camera.y = player.y - canvas.height/2;
+            
+            keys.left = false; keys.right = false; keys.up = false;
+
+            isGameRunning = true;
+            if(animationId) cancelAnimationFrame(animationId);
+            gameLoop();
+        }
+
+        function gameOver() {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            document.getElementById('game-over').style.display = 'flex';
+        }
+
+        function gameWin() {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            document.getElementById('win-screen').style.display = 'flex';
+        }
+
+        // Input Handling
+        window.addEventListener('keydown', (e) => {
+            if(e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+            if(e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+            if(e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if(e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+            if(e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+            if(e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = false;
+        });
+
+        // Mobile Control Bindings
+        const btnL = document.getElementById('btn-left');
+        const btnR = document.getElementById('btn-right');
+        const btnU = document.getElementById('btn-up');
+
+        const bindTouch = (elem, keyProp) => {
+            elem.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyProp] = true; }, {passive: false});
+            elem.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyProp] = false; }, {passive: false});
+        };
+        bindTouch(btnL, 'left');
+        bindTouch(btnR, 'right');
+        bindTouch(btnU, 'up');
+
+    </script>
+</body>
+</html>

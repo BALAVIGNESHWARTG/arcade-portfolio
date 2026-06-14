@@ -1,2 +1,400 @@
-<!DOCTYPE html><html><head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Coming Soon: wall-jumper</title><style>body{background:#050510;color:#00f3ff;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0; touch-action: none; user-select: none;}h1{text-shadow:0 0 10px #00f3ff;}</style></head><body><h1>wall-jumper - In Development</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wall Jumper</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #050505;
+            color: #39ff14;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #game-container {
+            flex: 1;
+            width: 100%;
+            max-width: 500px;
+            position: relative;
+            background: #111;
+            overflow: hidden;
+            border-left: 20px solid #39ff14;
+            border-right: 20px solid #39ff14;
+            box-shadow: 0 0 30px rgba(57, 255, 20, 0.2);
+        }
+
+        header {
+            position: absolute;
+            top: 20px; left: 0; width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .score-box { font-size: 36px; color: #fff; text-shadow: 0 0 10px #39ff14; font-weight: bold;}
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 20;
+        }
+
+        #start-screen, #game-over { display: none; }
+
+        .overlay h1 { font-size: 40px; margin-bottom: 10px; color: #39ff14; text-shadow: 0 0 20px #39ff14; }
+        .overlay p { font-size: 20px; margin-bottom: 30px; color: #ccc; }
+
+        button {
+            background: transparent;
+            border: 2px solid #39ff14;
+            color: #39ff14;
+            font-family: inherit;
+            padding: 10px 30px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #39ff14;
+            color: #000;
+            box-shadow: 0 0 20px #39ff14;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <header>
+            <div class="score-box"><span id="score">0</span></div>
+        </header>
+
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="overlay" id="start-screen" style="display:flex;">
+            <h1>WALL JUMPER</h1>
+            <p>Tap or Space to Jump</p>
+            <p style="font-size: 16px;">Avoid the spikes!</p>
+            <button onclick="startGame()">START</button>
+        </div>
+
+        <div class="overlay" id="game-over">
+            <h1 style="color:#ff003c; text-shadow:0 0 20px #ff003c;">SPLAT!</h1>
+            <p>Score: <span id="final-score">0</span></p>
+            <button onclick="startGame()">RETRY</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('final-score');
+        
+        let animationId;
+        let isGameRunning = false;
+        
+        // Game State
+        let score = 0;
+        let wallSpeed = 4;
+        let frameCount = 0;
+
+        // Player
+        const player = {
+            w: 20,
+            h: 30,
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            gravity: 0.5,
+            isJumping: false,
+            side: 'left' // 'left' or 'right'
+        };
+
+        // Environment
+        let obstacles = [];
+        let particles = [];
+
+        function resizeCanvas() {
+            let container = document.getElementById('game-container');
+            // Remove border width from internal logic
+            canvas.width = container.clientWidth - 40; 
+            canvas.height = container.clientHeight;
+            
+            if(!isGameRunning && !player.isJumping) {
+                player.x = 0;
+                player.y = canvas.height * 0.7;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function spawnObstacle() {
+            let side = Math.random() > 0.5 ? 'left' : 'right';
+            let width = Math.random() * 20 + 20;
+            let height = Math.random() * 30 + 30;
+            
+            obstacles.push({
+                side: side,
+                x: side === 'left' ? 0 : canvas.width - width,
+                y: -height, // spawn above screen
+                w: width,
+                h: height,
+                passed: false
+            });
+        }
+
+        function createParticles(x, y, color) {
+            for(let i=0; i<20; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    life: 1,
+                    color: color
+                });
+            }
+        }
+
+        function jump() {
+            if(!isGameRunning) return;
+            if(!player.isJumping) {
+                player.isJumping = true;
+                player.vy = -8; // slight upward arc
+                
+                // Velocity towards other wall
+                let jumpDistX = canvas.width - player.w;
+                // Time in air is approx frames. We want a snappy jump.
+                let airFrames = 25; 
+                player.vx = (player.side === 'left' ? jumpDistX : -jumpDistX) / airFrames;
+                
+                // Small particle effect on wall kick
+                let px = player.side === 'left' ? 0 : canvas.width;
+                createParticles(px, player.y + player.h/2, '#fff');
+            }
+        }
+
+        function update() {
+            frameCount++;
+            
+            // Difficulty curve
+            if(frameCount % 300 === 0) wallSpeed += 0.5;
+            
+            // Player Y physics (sliding down)
+            if(!player.isJumping) {
+                player.vy += 0.2; // Slide friction
+                if(player.vy > 5) player.vy = 5; // max slide speed
+                player.y += player.vy;
+                
+                // Keep player vertically centered roughly
+                let targetY = canvas.height * 0.7;
+                player.y += (targetY - player.y) * 0.05;
+                
+                // Wall sparks
+                if(Math.random() > 0.7) {
+                    particles.push({
+                        x: player.side === 'left' ? player.x : player.x + player.w,
+                        y: player.y + player.h,
+                        vx: player.side === 'left' ? Math.random() * 2 : -Math.random() * 2,
+                        vy: -Math.random() * 5,
+                        life: 1,
+                        color: '#39ff14'
+                    });
+                }
+            } else {
+                // In air physics
+                player.vy += player.gravity;
+                player.x += player.vx;
+                player.y += player.vy;
+                
+                // Wall collision (Landing)
+                if(player.vx > 0 && player.x >= canvas.width - player.w) {
+                    // Hit right wall
+                    player.x = canvas.width - player.w;
+                    player.isJumping = false;
+                    player.side = 'right';
+                    player.vx = 0;
+                    score++;
+                    scoreEl.innerText = score;
+                } else if(player.vx < 0 && player.x <= 0) {
+                    // Hit left wall
+                    player.x = 0;
+                    player.isJumping = false;
+                    player.side = 'left';
+                    player.vx = 0;
+                    score++;
+                    scoreEl.innerText = score;
+                }
+            }
+
+            // Fall off bottom check
+            if(player.y > canvas.height) {
+                gameOver();
+            }
+
+            // Obstacles
+            let spawnRate = Math.max(30, 80 - Math.floor(wallSpeed * 2));
+            if(frameCount % spawnRate === 0) {
+                spawnObstacle();
+            }
+
+            for(let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                // Move down
+                obs.y += wallSpeed;
+
+                // Collision
+                // Reduce hitbox slightly for fairness
+                if(player.x < obs.x + obs.w - 2 &&
+                   player.x + player.w > obs.x + 2 &&
+                   player.y < obs.y + obs.h - 2 &&
+                   player.y + player.h > obs.y + 2) {
+                    gameOver();
+                }
+
+                if(obs.y > canvas.height) {
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            // Particles
+            for(let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Obstacles
+            ctx.fillStyle = '#ff003c';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ff003c';
+            obstacles.forEach(obs => {
+                // Draw jagged spikes
+                ctx.beginPath();
+                if(obs.side === 'left') {
+                    ctx.moveTo(0, obs.y);
+                    ctx.lineTo(obs.w, obs.y + obs.h/2);
+                    ctx.lineTo(0, obs.y + obs.h);
+                } else {
+                    ctx.moveTo(canvas.width, obs.y);
+                    ctx.lineTo(canvas.width - obs.w, obs.y + obs.h/2);
+                    ctx.lineTo(canvas.width, obs.y + obs.h);
+                }
+                ctx.fill();
+            });
+
+            // Player
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#fff';
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+
+            // Eye/visor
+            ctx.fillStyle = '#39ff14';
+            ctx.shadowBlur = 0;
+            if(player.side === 'left' && !player.isJumping || (player.isJumping && player.vx > 0)) {
+                ctx.fillRect(player.x + 12, player.y + 5, 8, 4);
+            } else {
+                ctx.fillRect(player.x, player.y + 5, 8, 4);
+            }
+
+            // Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+            ctx.globalAlpha = 1.0;
+        }
+
+        function gameLoop() {
+            if(!isGameRunning) return;
+            update();
+            draw();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-over').style.display = 'none';
+            
+            resizeCanvas();
+            score = 0;
+            scoreEl.innerText = score;
+            wallSpeed = 5;
+            frameCount = 0;
+            obstacles = [];
+            particles = [];
+            
+            player.x = 0;
+            player.y = canvas.height * 0.7;
+            player.vx = 0;
+            player.vy = 0;
+            player.isJumping = false;
+            player.side = 'left';
+
+            isGameRunning = true;
+            if(animationId) cancelAnimationFrame(animationId);
+            gameLoop();
+        }
+
+        function gameOver() {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            createParticles(player.x + player.w/2, player.y + player.h/2, '#ff003c');
+            draw(); // Draw final explosion
+            
+            finalScoreEl.innerText = score;
+            setTimeout(() => {
+                document.getElementById('game-over').style.display = 'flex';
+            }, 500);
+        }
+
+        // Input
+        window.addEventListener('keydown', (e) => {
+            if(e.code === 'Space') {
+                e.preventDefault();
+                jump();
+            }
+        });
+
+        document.getElementById('game-container').addEventListener('mousedown', jump);
+        document.getElementById('game-container').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        }, {passive: false});
+
+    </script>
+</body>
+</html>

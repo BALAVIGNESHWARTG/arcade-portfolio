@@ -102,11 +102,11 @@ Touch events and precision timing.
 
 [ ] Speed Clicker
 
-[ ] Wall Jumper
+[x] Wall Jumper (Completed)
 
 [ ] Spike Escape
 
-[ ] Infinite Runner
+[x] Infinite Runner (Completed)
 
 [ ] Reflex Test Arena
 
@@ -122,11 +122,11 @@ Gravity, velocity, and collision detection.
 
 [x] Vector Thrust (Completed)
 
-[ ] Trap Dash
+[x] Trap Dash (Completed)
 
-[ ] Gravity Flip
+[x] Gravity Flip (Completed)
 
-[ ] Shadow Platformer
+[x] Shadow Platformer (Completed)
 
 [ ] Time Freeze Jump
 
